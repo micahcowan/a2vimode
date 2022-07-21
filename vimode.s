@@ -2,21 +2,32 @@
 ; MIT license (see accompanying LICENSE.txt)
 
 CH = $24
+CV = $25
 BASE = $28
 INVFLAG = $32
 
 IN = $200
+VTAB = $FC22
+VTABZ = $FC24
 CLREOL = $FC9C
 RDKEY = $FD0C
 KEYIN = $FD1B
 PRBYTE = $FDDA
 COUT = $FDED
+SETINV = $FE80
+SETNORM = $FE84
 BELL = $FF3A
 
 RET_RDCHAR = $FD37
 RET_GETLINE= $FD77
 
-;DEBUG=1
+DEBUG=1
+
+.ifndef DEBUG
+kMaxLength = $FE
+.else
+kMaxLength = $30 ; 48
+.endif
 
 .org $6000
 
@@ -35,6 +46,69 @@ RealInput:
     ; KSW routine, as needed.
     jmp KEYIN
 .ifdef DEBUG
+PrintState:
+    stx SaveX
+
+    ; Save screen coordinates, and go to top-left
+    lda CH
+    sta SavedCH
+    lda CV
+    sta SavedCV
+    lda #0
+    sta CH
+    sta CV
+    jsr VTABZ
+
+    lda INVFLAG
+    pha
+    jsr SETINV
+
+    ; Print X and LL
+    ldx SaveX
+    txa
+    jsr PRBYTE
+    lda #$A0
+    jsr COUT
+    lda LineLength
+    jsr PRBYTE
+    lda #$BD
+    jsr COUT
+
+    ; Print a portion of the buffer
+    ldx #0
+@lp:lda IN,x
+    cpx SaveX
+    beq @xPr
+    jsr PRBYTE
+@sp:lda #$A0
+    jsr COUT
+    inx
+    cpx #$0A ; ten chars of buffer (ignore LL)
+    bcc @lp
+
+    pla ; restore whatever inversion state from before
+    sta INVFLAG
+
+    ; Restore screen coords and peace out
+    lda SavedCH
+    sta CH
+    lda SavedCV
+    sta CV
+
+    ldx SaveX
+
+    jmp VTABZ
+@xPr:
+    pha
+    jsr SETNORM
+    pla
+    jsr PRBYTE
+    jsr SETINV
+    jmp @sp
+SavedCH:
+    .byte 0
+SavedCV:
+    .byte 0
 PrintStack:
     ; This is for debugging, but... calling it from within a DOS call
     ; will probably munge things
@@ -205,6 +279,9 @@ ViModeGetline:
     ; fall through to InsertMode
 InsertMode:
 ViModeEntry:
+.ifdef DEBUG
+    jsr PrintState
+.endif
     ; INSERT MODE.
     jsr RDKEY
     ; We enter here via return from CheckForGetLine (when GETLN
