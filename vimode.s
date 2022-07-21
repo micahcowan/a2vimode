@@ -3,11 +3,13 @@
 
 CH = $24
 BASE = $28
+IN = $200
 CLREOL = $FC9C
 RDKEY = $FD0C
 KEYIN = $FD1B
 PRBYTE = $FDDA
 COUT = $FDED
+BELL = $FF3A
 
 RET_RDCHAR = $FD37
 RET_GETLINE= $FD77
@@ -108,13 +110,8 @@ CheckForGetline:
     pha
     lda #<(ViModeEntry-1)
     pha
-QuickKeyInSetupAndCall:
-    lda #<RealInput
-    sta InputRedirFn
-    lda #>RealInput
-    sta InputRedirFn+1
-    jsr CLREOL ; ensure that everything on our line is actually
-               ; in the input buffer, as well
+RestoreAndGetKbd:
+    jsr CLREOL
     lda SaveA
     ldx SaveX
     jmp RealInput
@@ -151,9 +148,7 @@ FoundOneBack:
     inx
     lda #>(ViModeEntry-1)
     sta $100,x
-    jmp QuickKeyInSetupAndCall
-                        ; wrap up by avoiding future checks until our
-                        ; Getline exits.
+    jmp RestoreAndGetKbd
 FindGetlineHere:
     ; trounces A (presumed to be saved), but preserves X
     stx SaveSearchX
@@ -182,9 +177,57 @@ ViModeGetline:
     ; We never reach here. But it's here anyway, in case anyone ever
     ; wants to _explicitly_ call our GetLine...
     ; TODO: write the prompt and stuff like GetLine does. 
-    jsr QuickKeyInSetupAndCall
+    ;       Also, set up X-reg.
+    jsr CLREOL
+    ; fall through to InsertMode
+InsertMode:
+    ; INSERT MODE.
+    jsr RDKEY
 ViModeEntry:
-    jmp $FD78
+    ; We enter here via return from CheckForGetLine (when GETLN
+    ; was found)
+
+    ; Did we get a printable char? Just, ehm, print it.
+    cmp #$A0
+    bcc NotPrintable
+    cmp #$FF ; DELETE? treat like backspace
+    beq TryDoBS
+    ; We're printable! print (and store) us.
+    ; TODO: if we're a model that doesn't have lowercase, we should
+    ;  upper-bound it too, and force to caps like Apple ][+ does.
+    sta IN,x
+    inx
+    jsr COUT
+    ; XXX detect if we've rolled over to a new line, and CLREOL if
+    ; necessary - keeping in mind we may not be the end of the input
+    ; line if we're inserting within it.
+    jmp InsertMode
+NotPrintable:
+    cmp #$88 ; backspace?
+    beq TryDoBS
+    cmp #$8D
+    beq DoCR
+    ; XXX print and store control chars too
+    jmp InsertMode
+TryDoBS:
+    ; (Fuck what Yoda says, sometimes there is too try.)
+    cpx #0 ; Are we trying to BS over the beginning? Wail about it
+    bne DoBS
+    jsr BELL
+    jmp InsertMode
+DoBS:
+    dex
+    ; BS-SP-BS to delete char under cursor portably.
+    lda #$88
+    jsr COUT
+    lda #$A0
+    jsr COUT
+    lda #$88
+    jsr COUT
+    jmp InsertMode
+DoCR:
+    jmp COUT
+    rts
 SaveA:
     .byte 0
 SaveX:
