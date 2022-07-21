@@ -112,18 +112,29 @@ CheckForGetline:
     pha
     lda #<(ViModeEntry-1)
     pha
-QuickKeyInSetupAndCall:
-    jsr QuickKeyInSetup
+InitViModeAndDoKeyin:
+    jsr InitViMode
     lda SaveA
     ldx SaveX
     jmp RealInput
-QuickKeyInSetup:
+InitViMode:
+    ; Install direct keyin fn (no GETLN check)
     lda #<RealInput
     sta InputRedirFn
     lda #>RealInput
     sta InputRedirFn+1
+    ; Fill the inbuf with CRs
+    lda #$8D
+    ldx #0
+@lp:
+    sta IN,x
+    inx
+    bne @lp
+    ; Set the current line length
+    stx LineLength
     jmp CLREOL ; ensure that everything on our line is actually
-               ; in the input buffer, as well as on screen
+               ; in the input buffer, as well as on screen...
+               ; by clearing the line out that we're on.
 TryOneCallBack:
     inx
     inx
@@ -157,7 +168,7 @@ FoundOneBack:
     inx
     lda #>(ViModeEntry-1)
     sta $100,x
-    jmp QuickKeyInSetupAndCall
+    jmp InitViModeAndDoKeyin
 FindGetlineHere:
     ; trounces A (presumed to be saved), but preserves X
     stx SaveSearchX
@@ -187,7 +198,7 @@ ViModeGetline:
     ; wants to _explicitly_ call our GetLine...
     ; TODO: write the prompt and stuff like GetLine does. 
     ;       Also, set up X-reg.
-    jsr QuickKeyInSetup
+    jsr InitViMode
     ; fall through to InsertMode
 InsertMode:
     ; INSERT MODE.
@@ -198,39 +209,21 @@ ViModeEntry:
 
     ; Did we get a printable char? Just, ehm, print it.
     cmp #$A0
-    bcc NotPrintable
+    bcc ControlChar
     cmp #$FF ; DELETE? treat like backspace
     beq TryDoBS
     ; We're printable! print (and store) us.
     ; TODO: if we're a model that doesn't have lowercase, we should
     ;  upper-bound it too, and force to caps like Apple ][+ does.
-    sta IN,x
-    inx
-    jsr COUT
-    ; XXX detect if we've rolled over to a new line, and CLREOL if
-    ; necessary - keeping in mind we may not be the end of the input
-    ; line if we're inserting within it.
+    jsr TryInsertChar
     jmp InsertMode
-NotPrintable:
+ControlChar:
     cmp #$88 ; backspace?
     beq TryDoBS
     cmp #$8D
     beq DoCR
     ; Print and store control chars too
-    sta IN,x
-    inx
-    sta SaveA
-    lda INVFLAG
-    pha
-    lda #$3F ; control chars show as inverse text
-    sta INVFLAG
-    lda SaveA
-    and #$1F
-    ora #$C0
-    jsr COUT
-    pla
-    sta INVFLAG
-    ; XXX see "detect if we've rolled over to a new line" note above
+    jsr TryInsertChar
     jmp InsertMode
 TryDoBS:
     ; (Fuck what Yoda says, sometimes there is too try.)
@@ -258,6 +251,32 @@ DoCR:
     sta InputRedirFn+1
     pla
     rts
+TryInsertChar:
+    ; XXX ensure we don't try inserting when the buffer is too full!
+    ; XXX detect if we've rolled over to a new line, and CLREOL if
+    ; necessary - keeping in mind we may not be the end of the input
+    ; line if we're inserting within it.
+
+    ; If we're here we are definitely inserting.
+    inc LineLength
+    sta IN,x
+    inx
+    cmp #$A0
+    bcc InsControlChar
+    jmp COUT
+InsControlChar:
+    sta SaveA
+    lda INVFLAG
+    pha
+    lda #$3F ; control chars show as inverse text
+    sta INVFLAG
+    lda SaveA
+    and #$1F
+    ora #$C0
+    jsr COUT
+    pla
+    sta INVFLAG
+    rts
 SaveA:
     .byte 0
 SaveX:
@@ -265,6 +284,8 @@ SaveX:
 SaveY:
     .byte 0
 SaveSearchX:
+    .byte 0
+LineLength:
     .byte 0
 TmpWord:
     .word 0
