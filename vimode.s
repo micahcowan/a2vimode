@@ -27,6 +27,11 @@ InputRedirFn = * + 1
     ; has exited (so that future inputs once again check for
     ; GETLINE)
     jmp CheckForGetline
+RealInput:
+    ; keyboard input. This immediate-jmp routine exists
+    ; to make it easy to swap the keyboard input for some other
+    ; KSW routine, as needed.
+    jmp KEYIN
 .ifdef DEBUG
 PrintStack:
     ; This is for debugging, but... calling it from within a DOS call
@@ -76,11 +81,6 @@ PrintStack:
 @SvBASE: .word 0
 @SvCH:.byte 0
 .endif ; DEBUG
-RealInput:
-    ; keyboard input. This immediate-jmp routine exists
-    ; to make it easy to swap the keyboard input for some other
-    ; KSW routine, as needed.
-    jmp KEYIN
 CheckForGetline:
     ; Have a peek up our stack to see if our key-input
     ; routine has been called from GETLINE (via RDKEY, and 
