@@ -27,6 +27,8 @@ InputRedirFn = * + 1
     jmp CheckForGetline
 .ifdef DEBUG
 PrintStack:
+    ; This is for debugging, but... calling it from within a DOS call
+    ; will probably munge things
     sta @SvA
     stx @SvX
     sty @SvY
@@ -111,6 +113,8 @@ QuickKeyInSetupAndCall:
     sta InputRedirFn
     lda #>RealInput
     sta InputRedirFn+1
+    jsr CLREOL ; ensure that everything on our line is actually
+               ; in the input buffer, as well
     lda SaveA
     ldx SaveX
     jmp RealInput
@@ -180,27 +184,6 @@ ViModeGetline:
     ; TODO: write the prompt and stuff like GetLine does. 
     jsr QuickKeyInSetupAndCall
 ViModeEntry:
-    ; For right now, just print that we found us, and then jump into real
-    ; GETLINE.
-    ; TROUNCING first actually-typed character
-    lda #$C6
-    jsr COUT
-    lda #$CF
-    jsr COUT
-    lda #$D5
-    jsr COUT
-    lda #$CE
-    jsr COUT
-    lda #$C4
-    jsr COUT
-    lda #$88
-    stx SaveX
-    ldx #5
-@lp:
-    jsr COUT
-    dex
-    bne @lp
-    ; return yet a 6th backspace
     jmp $FD78
 SaveA:
     .byte 0
