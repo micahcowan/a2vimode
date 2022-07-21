@@ -297,8 +297,7 @@ ViModeEntry:
     ; We're printable! print (and store) us.
     ; TODO: if we're a model that doesn't have lowercase, we should
     ;  upper-bound it too, and force to caps like Apple ][+ does.
-    jsr TryInsertChar
-    jmp InsertMode
+    jmp TryInsertChar
 ControlChar:
 ; MaybeLeftArrow
     cmp #$88 ; left-arrow?
@@ -314,25 +313,20 @@ MaybeRightArrow:
     cmp #$95
     bne MaybeCR ;-> try 'nother char
     ; Try to go right.
-    cpx #$FE
+    cpx LineLength
     beq NoRoomRight
-    lda LineLength
-    cmp #$FE
+    cpx #kMaxLength
     beq NoRoomRight
     lda IN,x
-    cmp #$8D ; this shouldn't be true if the above tests are false!
-             ; ...but just in case...
-    beq NoRoomRight
     ; go right! print the current char to move.
-    jsr COUT
+    jsr ViPrintChar
     inx
     jmp InsertMode
 MaybeCR:
     cmp #$8D
     beq DoCR
     ; Unrecognized: we print and store uncrecognized control chars too
-    jsr TryInsertChar
-    jmp InsertMode
+    jmp TryInsertChar
 TryDoBS:
     ; (Fuck what Yoda says, sometimes there _is_ try.)
     cpx #0 ; Are we trying to BS over the beginning? Wail about it
@@ -358,7 +352,7 @@ DoBS:
     lda IN,x
     dex
     sta IN,x
-    jsr COUT
+    jsr ViPrintChar
     inx
     bne @lp ; always (hopefully)
 @done:
@@ -372,8 +366,22 @@ DoBS:
     jsr COUT
     lda #$88
     jsr COUT
+    jsr BackspaceFromEOL
+    jmp InsertMode
+DoCR:
+    ldx LineLength
+    jsr COUT ;XXX
+    ; Restore the check for GETLN
+    lda #<CheckForGetline
+    sta InputRedirFn
+    lda #>CheckForGetline
+    sta InputRedirFn+1
+    lda #$8D
+    rts
+BackspaceFromEOL:
     ; Now backspace back again to where we actually are, so next input
     ; prompts in the right place
+    stx SaveX
     lda LineLength
     sec
     sbc SaveX
@@ -386,27 +394,56 @@ DoBS:
     dey
     bne @lpBk
 @doneBk:
-    jmp InsertMode
-DoCR:
-    ldx LineLength
-    jsr COUT ;XXX
-    ; Restore the check for GETLN
-    lda #<CheckForGetline
-    sta InputRedirFn
-    lda #>CheckForGetline
-    sta InputRedirFn+1
-    lda #$8D
     rts
 TryInsertChar:
-    ; XXX ensure we don't try inserting when the buffer is too full!
+    ; Check to see if there's room for the char
+    sta SaveA
+    lda LineLength
+    cmp #kMaxLength
+    bcs NoRoomRight ; No more space left!
+
     ; XXX detect if we've rolled over to a new line, and CLREOL if
     ; necessary - keeping in mind we may not be the end of the input
     ; line if we're inserting within it.
 
-    ; If we're here we are definitely inserting.
+    ; If we're here we are definitely inserting
+InsertOk:
+    ; First, make some space in the buffer
+    stx SaveX
+    ldx LineLength
+    inx
+@lp:
+    dex
+    lda IN,x
+    inx
+    sta IN,x
+    dex
+    cpx SaveX
+    bne @lp
+    ; Increase line length
     inc LineLength
+    ; Insert the character to buffer
+    lda SaveA
     sta IN,x
     inx
+    ; Now print the character
+    jsr ViPrintChar
+PrintRestOfLine:
+    ; Print the rest of the line out after the new char
+    stx SaveX
+    cpx LineLength
+    beq @out
+@lp:lda IN,x
+    jsr ViPrintChar
+    inx
+    cpx LineLength
+    bne @lp
+@out:
+    ldx SaveX
+    ; need to backspace back again
+    jsr BackspaceFromEOL
+    jmp InsertMode
+ViPrintChar:
     cmp #$A0
     bcc InsControlChar
     jmp COUT
