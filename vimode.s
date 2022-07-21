@@ -112,11 +112,14 @@ CheckForGetline:
     pha
     lda #<(ViModeEntry-1)
     pha
-InitViModeAndDoKeyin:
+InitViModeAndGetStarted:
     jsr InitViMode
-    lda SaveA
-    ldx SaveX
-    jmp RealInput
+    ;lda SaveA - no, this should always be a space, since we cleared.
+    ; We're KSW, but we're returning to restart the prompt with a "real"
+    ; KSW. Just load SPACE and return, hopefully the DOS hook doesn't
+    ; care the value
+    lda #$A0
+    rts
 InitViMode:
     ; Install direct keyin fn (no GETLN check)
     lda #<RealInput
@@ -168,7 +171,7 @@ FoundOneBack:
     inx
     lda #>(ViModeEntry-1)
     sta $100,x
-    jmp InitViModeAndDoKeyin
+    jmp InitViModeAndGetStarted
 FindGetlineHere:
     ; trounces A (presumed to be saved), but preserves X
     stx SaveSearchX
@@ -201,9 +204,9 @@ ViModeGetline:
     jsr InitViMode
     ; fall through to InsertMode
 InsertMode:
+ViModeEntry:
     ; INSERT MODE.
     jsr RDKEY
-ViModeEntry:
     ; We enter here via return from CheckForGetLine (when GETLN
     ; was found)
 
@@ -218,38 +221,102 @@ ViModeEntry:
     jsr TryInsertChar
     jmp InsertMode
 ControlChar:
-    cmp #$88 ; backspace?
-    beq TryDoBS
+; MaybeLeftArrow
+    cmp #$88 ; left-arrow?
+    bne MaybeRightArrow ;-> try 'nother char
+    ; Try to go left.
+    cpx #0
+    beq NoRoomLeft
+    ; go left!
+    dex
+    jsr COUT ; emit BS
+    jmp InsertMode
+MaybeRightArrow:
+    cmp #$95
+    bne MaybeCR ;-> try 'nother char
+    ; Try to go right.
+    cpx #$FE
+    beq NoRoomRight
+    lda LineLength
+    cmp #$FE
+    beq NoRoomRight
+    lda IN,x
+    cmp #$8D ; this shouldn't be true if the above tests are false!
+             ; ...but just in case...
+    beq NoRoomRight
+    ; go right! print the current char to move.
+    jsr COUT
+    inx
+    jmp InsertMode
+MaybeCR:
     cmp #$8D
     beq DoCR
-    ; Print and store control chars too
+    ; Unrecognized: we print and store uncrecognized control chars too
     jsr TryInsertChar
     jmp InsertMode
 TryDoBS:
-    ; (Fuck what Yoda says, sometimes there is too try.)
+    ; (Fuck what Yoda says, sometimes there _is_ try.)
     cpx #0 ; Are we trying to BS over the beginning? Wail about it
     bne DoBS
+NoRoomLeft:
+NoRoomRight:
     ;jsr BELL
     jmp InsertMode
 DoBS:
-    dex
-    ; BS-SP-BS to delete char under cursor portably.
+    ; First, emit the backspace character to screen
     lda #$88
     jsr COUT
+    ; decrement line length
+    dec LineLength
+    ; Now, loop over each forward character, moving it back one,
+    ;  and also emitting it to screen
+    dex
+    stx SaveX
+@lp:
+    cpx LineLength
+    beq @done
+    inx
+    lda IN,x
+    dex
+    sta IN,x
+    jsr COUT
+    inx
+    bne @lp ; always (hopefully)
+@done:
+    ; Store a CR at the end
+    lda #$8D
+    sta IN,x
+    ; Restore X-reg
+    ldx SaveX
+    ; Emit a final space, and then backspace, to delete final character
     lda #$A0
     jsr COUT
     lda #$88
     jsr COUT
+    ; Now backspace back again to where we actually are, so next input
+    ; prompts in the right place
+    lda LineLength
+    sec
+    sbc SaveX
+    tay
+    lda #$88
+    cpy #$0
+    beq @doneBk
+@lpBk:
+    jsr COUT
+    dey
+    bne @lpBk
+@doneBk:
     jmp InsertMode
 DoCR:
-    pha
-    jsr COUT
+    ldx LineLength
+    jsr COUT ;XXX
     ; Restore the check for GETLN
     lda #<CheckForGetline
     sta InputRedirFn
     lda #>CheckForGetline
     sta InputRedirFn+1
-    pla
+    lda #$8D
     rts
 TryInsertChar:
     ; XXX ensure we don't try inserting when the buffer is too full!
