@@ -85,14 +85,14 @@ PrintStack:
 .endif ; DEBUG
 CheckForGetline:
     ; Have a peek up our stack to see if our key-input
-    ; routine has been called from GETLINE (via RDKEY, and 
+    ; routine has been called from GETLINE (via RDCHAR, and 
     ; possibly a DOS or ProDOS KSW hook). If it has,
     ; we (a) remove the return to RDCHAR entirely
     ; (it does special ESC-key processing that we wish
     ; to subvert!), and (b) replace the return to GETLINE with
     ; a return back to our GETLINE-replacement routine instead! >:-]
 
-    ; We check for one of two scenarios: either the GETLINE and RDKEY
+    ; We check for one of two scenarios: either the GETLINE and RDCHAR
     ; return addresses are _immediately_ behind us (no DOS hooks),
     ; or they are two bytes back, with an intervening DOS hook between.
     sta SaveA
@@ -112,11 +112,18 @@ CheckForGetline:
     pha
     lda #<(ViModeEntry-1)
     pha
-RestoreAndGetKbd:
-    jsr CLREOL
+QuickKeyInSetupAndCall:
+    jsr QuickKeyInSetup
     lda SaveA
     ldx SaveX
     jmp RealInput
+QuickKeyInSetup:
+    lda #<RealInput
+    sta InputRedirFn
+    lda #>RealInput
+    sta InputRedirFn+1
+    jmp CLREOL ; ensure that everything on our line is actually
+               ; in the input buffer, as well as on screen
 TryOneCallBack:
     inx
     inx
@@ -150,7 +157,7 @@ FoundOneBack:
     inx
     lda #>(ViModeEntry-1)
     sta $100,x
-    jmp RestoreAndGetKbd
+    jmp QuickKeyInSetupAndCall
 FindGetlineHere:
     ; trounces A (presumed to be saved), but preserves X
     stx SaveSearchX
@@ -180,7 +187,7 @@ ViModeGetline:
     ; wants to _explicitly_ call our GetLine...
     ; TODO: write the prompt and stuff like GetLine does. 
     ;       Also, set up X-reg.
-    jsr CLREOL
+    jsr QuickKeyInSetup
     ; fall through to InsertMode
 InsertMode:
     ; INSERT MODE.
@@ -242,7 +249,14 @@ DoBS:
     jsr COUT
     jmp InsertMode
 DoCR:
-    jmp COUT
+    pha
+    jsr COUT
+    ; Restore the check for GETLN
+    lda #<CheckForGetline
+    sta InputRedirFn
+    lda #>CheckForGetline
+    sta InputRedirFn+1
+    pla
     rts
 SaveA:
     .byte 0
