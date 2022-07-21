@@ -40,6 +40,8 @@ InputRedirFn = * + 1
     ; has exited (so that future inputs once again check for
     ; GETLINE)
     jmp CheckForGetline
+    jmp CheckForGetline ; we say it twice, so the bootstrapper
+                        ; knows what it should look like :)
 RealInput:
     ; keyboard input. This immediate-jmp routine exists
     ; to make it easy to swap the keyboard input for some other
