@@ -3,6 +3,8 @@
 
 CH = $24
 BASE = $28
+INVFLAG = $32
+
 IN = $200
 CLREOL = $FC9C
 RDKEY = $FD0C
@@ -207,13 +209,27 @@ NotPrintable:
     beq TryDoBS
     cmp #$8D
     beq DoCR
-    ; XXX print and store control chars too
+    ; Print and store control chars too
+    sta IN,x
+    inx
+    sta SaveA
+    lda INVFLAG
+    pha
+    lda #$3F ; control chars show as inverse text
+    sta INVFLAG
+    lda SaveA
+    and #$1F
+    ora #$C0
+    jsr COUT
+    pla
+    sta INVFLAG
+    ; XXX see "detect if we've rolled over to a new line" note above
     jmp InsertMode
 TryDoBS:
     ; (Fuck what Yoda says, sometimes there is too try.)
     cpx #0 ; Are we trying to BS over the beginning? Wail about it
     bne DoBS
-    jsr BELL
+    ;jsr BELL
     jmp InsertMode
 DoBS:
     dex
