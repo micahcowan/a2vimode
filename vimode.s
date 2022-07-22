@@ -1,6 +1,8 @@
 ; Copyright 2022 Micah J Cowan <micah@addictivecode.org>
 ; MIT license (see accompanying LICENSE.txt)
 
+.macpack apple2
+
 CH = $24
 CV = $25
 BASE = $28
@@ -281,6 +283,8 @@ KnownRTS:
 GetlineID:
     ; bytes that represent call-returns to RDCHAR and GETLINE
     .byte $37, $FD, $77, $FD, $00
+
+
 ViModeGetline:
     ; Call to here if you want an explicit call to _our_ GETLN.
     ; Print the prompt...
@@ -306,6 +310,47 @@ InitViMode:
     jsr CLREOL ; ensure that everything on our line is actually
                ; in the input buffer, as well as on screen...
                ; by clearing the line out that we're on.
+.ifdef DEBUG
+    ; Pre-fill the buffer when we enter for the first time, to
+    ; present an easy playground that tests our latest features
+PrefillFlag = * + 1
+    lda #$FF
+    bpl @dbail
+
+    ldx #0
+    ldy #0
+    stx SaveX
+    dey
+@dlp:
+    iny
+    lda DbgPrefill,y
+    beq @dlpdn ; terminating NUL?
+    cmp #$80   ; X-save flag?
+    bne @dprnt
+    ; flag to put X here.
+    stx SaveX
+    jmp @dlp
+@dprnt:
+    sta IN,x
+    sty SaveY
+    jsr ViPrintChar
+    ldy SaveY
+    inx
+    bne @dlp
+@dlpdn:
+    stx LineLength
+    ldx SaveX
+    jsr BackspaceFromEOL
+
+    lda #$00
+    sta PrefillFlag ; make sure we don't do this again at the next prompt
+@dbail:
+    jmp InsertMode
+DbgPrefill:
+    ; used to pre-fill the buffer when we first enter
+    scrcode "AWEF ", 0, "AWEF AWEF"
+    .byte 0
+.endif
 InsertMode:
 .ifdef DEBUG
     jsr PrintState
