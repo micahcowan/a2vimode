@@ -348,7 +348,7 @@ PrefillFlag = * + 1
     jmp InsertMode
 DbgPrefill:
     ; used to pre-fill the buffer when we first enter
-    scrcode "AWEF ", 0, "AWEF AWEF"
+    scrcode "OH IT'S A ! JOLLY 'OLIDAY"
     .byte 0
 .endif
 InsertMode:
@@ -731,19 +731,54 @@ TryGoRightOne:
     inx
 @rts:
     rts
-MoveForwardWord:
-    ; XXX fake, just forwards 5
-    inx
-    inx
-    inx
-    inx
-    inx
+GetIsWordChar:
+    ; Exits with carry set if Areg is a word char
+    ;
+    ; XXX crude version, ignores some kinds of punctuation.
+    ; Should be: word is everything that's not punctuation, space, or control
+    ; (leaving alphanum).
+    ; XXX is: word is everything >= #$C1
+    cmp #$C1
+    rts
+MoveWhileWord:
+@lp:
     cpx LineLength
+    beq @done
+    lda IN,x
+    jsr GetIsWordChar
     bcc @done
-    ; went too far!
-    ldx LineLength
+    inx
+    bne @lp
 @done:
     rts
+MoveWhileNotWord:
+@lp:
+    cpx LineLength
+    beq @done
+    lda IN,x
+    jsr GetIsWordChar
+    bcs @done
+    inx
+    bne @lp
+@done:
+    rts
+MoveForwardWord:
+    stx @privSave0
+    jsr MoveWhileWord
+    jsr GetIsWordChar
+    bcs @giveUp     ; give up if we never managed to leave a word
+    jsr MoveWhileNotWord
+    cpx LineLength  ; give up if we're past the end
+    beq @giveUp
+    jsr GetIsWordChar
+    bcc @giveUp     ; or if we're not at a new word
+    ; We made it!
+    rts
+@giveUp:
+    ldx @privSave0
+    rts
+@privSave0:
+    .byte 0
 SaveA:
     .byte 0
 SaveX:
