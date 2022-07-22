@@ -5,6 +5,7 @@ CH = $24
 CV = $25
 BASE = $28
 INVFLAG = $32
+PROMPT = $33
 
 IN = $200
 VTAB = $FC22
@@ -299,7 +300,11 @@ ViModeEntry:
     ;  upper-bound it too, and force to caps like Apple ][+ does.
     jmp TryInsertChar
 ControlChar:
-; MaybeLeftArrow
+MaybeEsc:
+    cmp #$9B ; ESC?
+    bne MaybeLeftArrow
+    jmp EnterNormalMode
+MaybeLeftArrow:
     cmp #$88 ; left-arrow?
     bne MaybeRightArrow ;-> try 'nother char
     ; Try to go left.
@@ -386,6 +391,7 @@ BackspaceFromEOL:
     sec
     sbc SaveX
     tay
+EmitYCntBsp:
     lda #$88
     cpy #$0
     beq @doneBk
@@ -443,11 +449,27 @@ PrintRestOfLine:
     ; need to backspace back again
     jsr BackspaceFromEOL
     jmp InsertMode
+BackspaceToStart:
+    txa
+    tay
+    jmp EmitYCntBsp
+PrintStartToX:
+    stx SaveX
+    ldy #0
+    cpy SaveX
+    beq @done
+@lp:lda IN,y
+    jsr ViPrintChar
+    iny
+    cpy SaveX
+    bne @lp
+@done:
+    rts
 ViPrintChar:
     cmp #$A0
-    bcc InsControlChar
+    bcc PrintControlChar
     jmp COUT
-InsControlChar:
+PrintControlChar:
     sta SaveA
     lda INVFLAG
     pha
@@ -459,6 +481,44 @@ InsControlChar:
     jsr COUT
     pla
     sta INVFLAG
+    rts
+EnterNormalMode:
+    lda #$2D ; '-'
+    jsr ChangePrompt
+    jmp NormalMode
+ResetNormalMode:
+    ; XXX reset a command or movement-in-progress
+NormalMode:
+    jsr RDKEY
+    cmp #$C9 ; 'I'
+    bne NormalUnrecognized
+    ; fall through
+EnterInsertMode:
+    jsr RestorePrompt
+    jmp InsertMode
+NormalUnrecognized:
+    ;jsr BELL
+    jmp NormalMode
+RestorePrompt:
+    lda PROMPT
+    ; fall through
+ChangePrompt:
+    sta @CPSaveA
+    cmp #$80 ; New prompt NUL?
+    beq @bail
+    lda PROMPT
+    cmp #$80 ; Official prompt NUL?
+    beq @bail
+
+    jsr BackspaceToStart
+    ; one more BS gets us onto the prompt.
+    lda #$88
+    jsr COUT
+@CPSaveA = * + 1
+    lda #$DC
+    jsr COUT
+    jmp PrintStartToX
+@bail:
     rts
 SaveA:
     .byte 0
