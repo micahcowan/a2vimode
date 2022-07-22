@@ -25,7 +25,7 @@ BELL = $FF3A
 RET_RDCHAR = $FD37
 RET_GETLINE= $FD77
 
-DEBUG=1
+;DEBUG=1
 
 .ifndef DEBUG
 kMaxLength = $FE
@@ -383,13 +383,13 @@ MaybeCtrlBackslash:
     jsr ToggleStatusBar
     jmp InsertMode
 @nf:
+.endif
 MaybeCtrlL:
     cmp #$8C ; C-L ?
     bne @nf
     jsr ReadWait
     jmp InsertMode
 @nf:
-.endif
 MaybeEsc:
     cmp #$89 ; Tab? (workaround for ESC, in 80-col mode)
     beq @yes
@@ -959,7 +959,7 @@ ReadWait:
     clc
     asl
     pha
-    ; WAIT, but a bunch'a times
+    ; WAIT, but a bunch'a times (up to ~2 secs)
     ldy #$0A
 @lp:
     jsr WAIT
