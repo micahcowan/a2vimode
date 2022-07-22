@@ -343,25 +343,12 @@ MaybeEsc:
 MaybeLeftArrow:
     cmp #$88 ; left-arrow?
     bne MaybeRightArrow ;-> try 'nother char
-    ; Try to go left.
-    cpx #0
-    beq NoRoomLeft
-    ; go left!
-    dex
-    jsr COUT ; emit BS
+    jsr TryGoLeftOne
     jmp InsertMode
 MaybeRightArrow:
     cmp #$95
     bne MaybeCtrlX ;-> try 'nother char
-    ; Try to go right.
-    cpx LineLength
-    beq NoRoomRight
-    cpx #kMaxLength
-    beq NoRoomRight
-    lda IN,x
-    ; go right! print the current char to move.
-    jsr ViPrintChar
-    inx
+    jsr TryGoRightOne
     jmp InsertMode
 MaybeCtrlX:
     cmp #$98
@@ -549,13 +536,31 @@ NormalMode:
     jsr PrintState
 .endif
     jsr RDKEY
+    ; in our normal mode, lowercase should be converted to upper.
+    cmp #$E0    ; < 'a' ?
+    bcc @nocvt  ; -> no
+    cmp #$FA    ; >= '{' ?
+    bcs @nocvt
+    ; clc (unnecessary)
+    adc #$20
+@nocvt:
 .ifdef DEBUG
 NrmMaybeTab:
     cmp #$89 ; Tab?
-    bne NrmMaybeI
+    bne NrmMaybeH
     jsr ToggleStatusBar
     jmp ResetNormalMode
 .endif
+NrmMaybeH:
+    cmp #$C8 ; 'H'
+    bne NrmMaybeL
+    jsr TryGoLeftOne
+    jmp ResetNormalMode
+NrmMaybeL:
+    cmp #$CC ; 'L'
+    bne NrmMaybeI
+    jsr TryGoRightOne
+    jmp ResetNormalMode
 NrmMaybeI:
     cmp #$C9 ; 'I'
     bne NormalUnrecognized
@@ -586,6 +591,28 @@ ChangePrompt:
     jsr COUT
     jmp PrintStartToX
 @bail:
+    rts
+TryGoLeftOne:
+    ; Try to go left.
+    cpx #0
+    bne @skipRts
+    rts
+@skipRts:
+    ; go left!
+    dex
+    lda #$88
+    jmp COUT ; emit BS
+TryGoRightOne:
+    ; Try to go right.
+    cpx LineLength
+    beq @rts
+    cpx #kMaxLength
+    beq @rts
+    lda IN,x
+    ; go right! print the current char to move.
+    jsr ViPrintChar
+    inx
+@rts:
     rts
 SaveA:
     .byte 0
