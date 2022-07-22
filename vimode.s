@@ -411,8 +411,11 @@ DoBS:
     jsr BackspaceFromEOL
     jmp InsertMode
 DoCR:
+    jsr PrintRestOfLine ; jump to end
     ldx LineLength
-    jsr COUT ;XXX
+    lda #$8D ; CR
+    sta IN,x ; make damn sure we're locked off with a CR
+    jsr COUT ; ...and emit one, as GETLN would.
     ; Restore the check for GETLN
     lda #<CheckForGetline
     sta InputRedirFn
