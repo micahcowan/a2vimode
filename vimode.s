@@ -445,10 +445,6 @@ TryInsertChar:
     cmp #kMaxLength
     bcs NoRoomRight ; No more space left!
 
-    ; XXX detect if we've rolled over to a new line, and CLREOL if
-    ; necessary - keeping in mind we may not be the end of the input
-    ; line if we're inserting within it.
-
     ; If we're here we are definitely inserting
 InsertOk:
     ; First, make some space in the buffer
@@ -544,7 +540,7 @@ EnterNormalMode:
     jsr ChangePrompt
     jmp NormalMode
 ResetNormalMode:
-    ; XXX reset a command or movement-in-progress
+    ; TODO: reset a command or movement-in-progress
 NormalMode:
 .ifdef DEBUG
     jsr PrintState
