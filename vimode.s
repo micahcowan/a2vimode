@@ -114,10 +114,6 @@ PrintState:
     jmp @sp
 StatusBarOn:
     .byte $FF
-SavedCH:
-    .byte 0
-SavedCV:
-    .byte 0
 ToggleStatusBar:
     lda StatusBarOn
     eor #$FF
@@ -511,7 +507,7 @@ PrintStartToX:
 ViPrintChar:
     cmp #$A0
     bcc PrintControlChar
-    jmp COUT
+    jmp CoutRowCheck
 PrintControlChar:
     sta SaveA
     lda INVFLAG
@@ -521,9 +517,27 @@ PrintControlChar:
     lda SaveA
     and #$1F
     ora #$C0
-    jsr COUT
+    jsr CoutRowCheck
     pla
     sta INVFLAG
+    rts
+CoutRowCheck:
+    pha
+    lda CV
+    sta SavedCV
+    pla
+    pha
+    jsr COUT
+    lda CV
+    cmp SavedCV
+    beq @skipClr
+    tya
+    pha
+    jsr CLREOL
+    pla
+    tay
+@skipClr:
+    pla
     rts
 EnterNormalMode:
     lda #$AD ; '-'
@@ -619,6 +633,10 @@ SaveA:
 SaveX:
     .byte 0
 SaveY:
+    .byte 0
+SavedCH:
+    .byte 0
+SavedCV:
     .byte 0
 SaveSearchX:
     .byte 0
