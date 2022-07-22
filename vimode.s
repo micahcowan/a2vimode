@@ -654,16 +654,15 @@ NrmMaybeW:
     bne @nf
     stx SaveA ; nevermind the name...
     jsr MoveForwardWord
-    stx SaveX
-    txa
-    pha
-        sec
-        sbc SaveA ; newX - origX
-        tay
-        ldx SaveA
-        jsr PrintYNextChars
-    pla
-    tax
+    jsr PrintForwardMoveFromSaveA
+    jmp ResetNormalMode
+@nf:
+NrmMaybeE:
+    cmp #$C5 ; 'E'
+    bne @nf
+    stx SaveA ; nevermind the name...
+    jsr MoveForwardWordEnd
+    jsr PrintForwardMoveFromSaveA
     jmp ResetNormalMode
 @nf:
 NrmMaybeH:
@@ -779,6 +778,31 @@ MoveForwardWord:
     rts
 @privSave0:
     .byte 0
+MoveForwardWordEnd:
+    stx @privSave0
+    jsr MoveWhileNotWord
+    jsr GetIsWordChar
+    bcc @giveUp     ; give up if we never managed to enter a word
+    jsr MoveWhileWord
+    rts
+@giveUp:
+    ldx @privSave0
+    rts
+@privSave0:
+    .byte 0
+PrintForwardMoveFromSaveA:
+    stx SaveX
+    txa
+    pha
+        sec
+        sbc SaveA ; newX - origX
+        tay
+        ldx SaveA
+        jsr PrintYNextChars
+    pla
+    tax
+    rts
+;
 SaveA:
     .byte 0
 SaveX:
