@@ -538,6 +538,20 @@ PrintRestOfLine:
 @out:
     ldx SaveX
     rts
+PrintYNextChars:
+    stx SaveX
+    cpy #0
+    beq @done
+    sty SaveY
+@lp:
+    lda IN,x
+    jsr ViPrintChar
+    inx
+    dec SaveY
+    bne @lp
+@done:
+    ldx SaveX
+    rts
 BackspaceToStart:
     txa
     tay
@@ -635,6 +649,23 @@ NrmMaybeZero:
     ldx #0
     jmp ResetNormalMode
 @nf:
+NrmMaybeW:
+    cmp #$D7 ; 'W'
+    bne @nf
+    stx SaveA ; nevermind the name...
+    jsr MoveForwardWord
+    stx SaveX
+    txa
+    pha
+        sec
+        sbc SaveA ; newX - origX
+        tay
+        ldx SaveA
+        jsr PrintYNextChars
+    pla
+    tax
+    jmp ResetNormalMode
+@nf:
 NrmMaybeH:
     cmp #$C8 ; 'H'
     bne @nf
@@ -699,6 +730,19 @@ TryGoRightOne:
     jsr ViPrintChar
     inx
 @rts:
+    rts
+MoveForwardWord:
+    ; XXX fake, just forwards 5
+    inx
+    inx
+    inx
+    inx
+    inx
+    cpx LineLength
+    bcc @done
+    ; went too far!
+    ldx LineLength
+@done:
     rts
 SaveA:
     .byte 0
