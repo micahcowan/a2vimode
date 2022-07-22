@@ -115,7 +115,7 @@ PrintState:
     jsr SETINV
     jmp @sp
 StatusBarOn:
-    .byte $FF
+    .byte $00 ; off by default
 ToggleStatusBar:
     lda StatusBarOn
     eor #$FF
@@ -376,16 +376,19 @@ InsertMode:
     jmp TryInsertChar
 ControlChar:
 .ifdef DEBUG
-MaybeTab:
-    cmp #$89 ; Tab?
+MaybeCtrlBackslash:
+    cmp #$9C ; C-\ ?
     bne @nf ;-> try 'nother char
     jsr ToggleStatusBar
     jmp InsertMode
 @nf:
 .endif
 MaybeEsc:
+    cmp #$89 ; Tab? (workaround for ESC, in 80-col mode)
+    beq @yes
     cmp #$9B ; ESC?
     bne @nf ;-> try 'nother char
+@yes:
     jmp EnterNormalMode
 @nf:
 MaybeLeftArrow:
@@ -697,8 +700,8 @@ NrmMaybeCR:
 NrmSafeCommands:
 ; END of line-modifying commands
 .ifdef DEBUG
-NrmMaybeTab:
-    cmp #$89 ; Tab?
+NrmMaybeCtrlBackslash:
+    cmp #$9C ; C-\ ?
     bne @nf
     jsr ToggleStatusBar
     jmp ResetNormalMode
