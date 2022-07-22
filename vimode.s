@@ -541,8 +541,8 @@ NormalMode:
     bcc @nocvt  ; -> no
     cmp #$FA    ; >= '{' ?
     bcs @nocvt
-    ; clc (unnecessary)
-    adc #$20
+    sec
+    sbc #$20
 @nocvt:
 .ifdef DEBUG
 NrmMaybeTab:
