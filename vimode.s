@@ -373,27 +373,31 @@ ControlChar:
 .ifdef DEBUG
 MaybeTab:
     cmp #$89 ; Tab?
-    bne MaybeEsc
+    bne @nf ;-> try 'nother char
     jsr ToggleStatusBar
     jmp InsertMode
+@nf:
 .endif
 MaybeEsc:
     cmp #$9B ; ESC?
-    bne MaybeLeftArrow
+    bne @nf ;-> try 'nother char
     jmp EnterNormalMode
+@nf:
 MaybeLeftArrow:
     cmp #$88 ; left-arrow?
-    bne MaybeRightArrow ;-> try 'nother char
+    bne @nf ;-> try 'nother char
     jsr TryGoLeftOne
     jmp InsertMode
+@nf:
 MaybeRightArrow:
     cmp #$95
-    bne MaybeCtrlX ;-> try 'nother char
+    bne @nf ;-> try 'nother char
     jsr TryGoRightOne
     jmp InsertMode
+@nf:
 MaybeCtrlX:
     cmp #$98
-    bne MaybeCtrlV ;-> try 'nother char
+    bne @nf ;-> try 'nother char
     jsr PrintRestOfLine
     ldx LineLength
     lda #$A0
@@ -403,12 +407,14 @@ MaybeCtrlX:
     lda #$8D ; CR
     jsr COUT
     jmp ViModeGetline
+@nf:
 MaybeCtrlV:
     cmp #$96
-    bne MaybeCR ;-> try 'nother char
+    bne @nf ;-> try 'nother char
     ; do a direct read, and insert it, whatever it may be
     jsr RDKEY
     jmp TryInsertChar
+@nf:
 MaybeCR:
     cmp #$8D
     beq DoCR
@@ -605,36 +611,42 @@ NormalMode:
 .ifdef DEBUG
 NrmMaybeTab:
     cmp #$89 ; Tab?
-    bne NrmMaybeCR
+    bne @nf
     jsr ToggleStatusBar
     jmp ResetNormalMode
+@nf:
 .endif
 NrmMaybeCR:
     cmp #$8D ; CR
-    bne NrmMaybeEol
+    bne @nf
     jmp DoCR
+@nf:
 NrmMaybeEol:
     cmp #$A4 ; $
-    bne NrmMaybeZero
+    bne @nf
     jsr PrintRestOfLine
     ldx LineLength
     jmp ResetNormalMode
+@nf:
 NrmMaybeZero:
     cmp #$B0 ; 0
-    bne NrmMaybeH
+    bne @nf
     jsr BackspaceToStart
     ldx #0
     jmp ResetNormalMode
+@nf:
 NrmMaybeH:
     cmp #$C8 ; 'H'
-    bne NrmMaybeL
+    bne @nf
     jsr TryGoLeftOne
     jmp ResetNormalMode
+@nf:
 NrmMaybeL:
     cmp #$CC ; 'L'
-    bne NrmMaybeI
+    bne @nf
     jsr TryGoRightOne
     jmp ResetNormalMode
+@nf:
 NrmMaybeI:
     cmp #$C9 ; 'I'
     bne NormalUnrecognized
