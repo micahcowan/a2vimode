@@ -50,6 +50,10 @@ RealInput:
     jmp KEYIN
 .ifdef DEBUG
 PrintState:
+    bit StatusBarOn
+    bmi @good
+    rts
+@good:
     stx SaveX
 
     ; Save screen coordinates, and go to top-left
@@ -108,10 +112,37 @@ PrintState:
     jsr PRBYTE
     jsr SETINV
     jmp @sp
+StatusBarOn:
+    .byte $FF
 SavedCH:
     .byte 0
 SavedCV:
     .byte 0
+ToggleStatusBar:
+    lda StatusBarOn
+    eor #$FF
+    sta StatusBarOn
+    bmi @done
+    ; We just switched status bar off; go and erase it
+    lda CH
+    sta SavedCH
+    lda CV
+    sta SavedCV
+
+    lda #0
+    sta CH
+    sta CV
+    jsr VTABZ
+
+    jsr CLREOL
+
+    lda SavedCH
+    sta CH
+    lda SavedCV
+    sta CV
+    jsr VTABZ
+@done:
+    rts
 PrintStack:
     ; This is for debugging, but... calling it from within a DOS call
     ; will probably munge things
@@ -300,6 +331,13 @@ ViModeEntry:
     ;  upper-bound it too, and force to caps like Apple ][+ does.
     jmp TryInsertChar
 ControlChar:
+.ifdef DEBUG
+MaybeTab:
+    cmp #$89 ; Tab?
+    bne MaybeEsc
+    jsr ToggleStatusBar
+    jmp InsertMode
+.endif
 MaybeEsc:
     cmp #$9B ; ESC?
     bne MaybeLeftArrow
@@ -483,13 +521,24 @@ PrintControlChar:
     sta INVFLAG
     rts
 EnterNormalMode:
-    lda #$2D ; '-'
+    lda #$AD ; '-'
     jsr ChangePrompt
     jmp NormalMode
 ResetNormalMode:
     ; XXX reset a command or movement-in-progress
 NormalMode:
+.ifdef DEBUG
+    jsr PrintState
+.endif
     jsr RDKEY
+.ifdef DEBUG
+NrmMaybeTab:
+    cmp #$89 ; Tab?
+    bne NrmMaybeI
+    jsr ToggleStatusBar
+    jmp ResetNormalMode
+.endif
+NrmMaybeI:
     cmp #$C9 ; 'I'
     bne NormalUnrecognized
     ; fall through
