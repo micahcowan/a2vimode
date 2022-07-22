@@ -11,6 +11,7 @@ PROMPT = $33
 
 IN = $200
 VTAB = $FC22
+WAIT = $FCA8
 VTABZ = $FC24
 CLREOL = $FC9C
 RDKEY = $FD0C
@@ -380,6 +381,12 @@ MaybeCtrlBackslash:
     cmp #$9C ; C-\ ?
     bne @nf ;-> try 'nother char
     jsr ToggleStatusBar
+    jmp InsertMode
+@nf:
+MaybeCtrlL:
+    cmp #$8C ; C-L ?
+    bne @nf
+    jsr ReadWait
     jmp InsertMode
 @nf:
 .endif
@@ -944,6 +951,23 @@ PrintForwardMoveFromSaveA:
         jsr PrintYNextChars
     pla
     tax
+    rts
+ReadWait:
+    jsr RDKEY
+    sec
+    and #$7F ; char ranges from $80 - $FF, make it range from $00 - $FE
+    clc
+    asl
+    pha
+    ; WAIT, but a bunch'a times
+    ldy #$0A
+@lp:
+    jsr WAIT
+    pla
+    pha
+    dey
+    bne @lp
+    pla
     rts
 ;
 SaveA:
