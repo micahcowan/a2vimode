@@ -301,6 +301,7 @@ InitViMode:
     ; Fill the inbuf with CRs
     lda #$8D
     ldx #0
+    stx appendModeFlag ; reset append flag
 @lp:
     sta IN,x
     inx
@@ -363,8 +364,12 @@ InsertMode:
     ; Did we get a printable char? Just, ehm, print it.
     cmp #$A0
     bcc ControlChar
+@PrinableOrDEL:
     cmp #$FF ; DELETE? treat like backspace
-    beq TryDoBS
+    bne @Printable
+    jsr Backspace
+    jmp InsertMode
+@Printable:
     ; We're printable! print (and store) us.
     ; TODO: if we're a model that doesn't have lowercase, we should
     ;  upper-bound it too, and force to caps like Apple ][+ does.
@@ -384,20 +389,22 @@ MaybeEsc:
     jmp EnterNormalMode
 @nf:
 MaybeLeftArrow:
-    cmp #$88 ; left-arrow?
+    cmp #$88 ; left-arrow (backspace)?
     bne @nf ;-> try 'nother char
-    jsr TryGoLeftOne
+    ;jsr TryGoLeftOne - no, bc ][+ doesn't have DELETE, only BS
+    jsr Backspace
     jmp InsertMode
 @nf:
-MaybeRightArrow:
-    cmp #$95
-    bne @nf ;-> try 'nother char
-    jsr TryGoRightOne
-    jmp InsertMode
-@nf:
+;MaybeRightArrow:
+;    cmp #$95
+;    bne @nf ;-> try 'nother char
+;    jsr TryGoRightOne
+;    jmp InsertMode
+;@nf:
 MaybeCtrlX:
     cmp #$98
-    bne @nf ;-> try 'nother char
+    bne MaybeCtrlXOut ;-> try 'nother char
+DoAbortLine:
     jsr PrintRestOfLine
     ldx LineLength
     lda #$A0
@@ -407,7 +414,8 @@ MaybeCtrlX:
     lda #$8D ; CR
     jsr COUT
     jmp ViModeGetline
-@nf:
+MaybeCtrlXOut:
+;
 MaybeCtrlV:
     cmp #$96
     bne @nf ;-> try 'nother char
@@ -418,48 +426,12 @@ MaybeCtrlV:
 MaybeCR:
     cmp #$8D
     beq DoCR
+IMUnrecognizedControl:
     ; Unrecognized: we print and store uncrecognized control chars too
     jmp TryInsertChar
-TryDoBS:
-    ; (Fuck what Yoda says, sometimes there _is_ try.)
-    cpx #0 ; Are we trying to BS over the beginning? Wail about it
-    bne DoBS
 NoRoomLeft:
 NoRoomRight:
     ;jsr BELL
-    jmp InsertMode
-DoBS:
-    ; First, emit the backspace character to screen
-    lda #$88
-    jsr COUT
-    ; decrement line length
-    dec LineLength
-    ; Now, loop over each forward character, moving it back one,
-    ;  and also emitting it to screen
-    dex
-    stx SaveX
-@lp:
-    cpx LineLength
-    beq @done
-    inx
-    lda IN,x
-    dex
-    sta IN,x
-    jsr ViPrintChar
-    inx
-    bne @lp ; always (hopefully)
-@done:
-    ; Store a CR at the end
-    lda #$8D
-    sta IN,x
-    ; Restore X-reg
-    ldx SaveX
-    ; Emit a final space, and then backspace, to delete final character
-    lda #$A0
-    jsr COUT
-    lda #$88
-    jsr COUT
-    jsr BackspaceFromEOL
     jmp InsertMode
 DoCR:
     jsr PrintRestOfLine ; jump to end
@@ -603,12 +575,56 @@ CoutRowCheck:
 @skipClr:
     pla
     rts
+Backspace:
+    cpx #0
+    bne @cont
+    ;jsr BELL
+    rts ; nothing to do.
+@cont:
+    ; First, emit the backspace character to screen
+    lda #$88
+    jsr COUT
+    ; decrement line length
+    dec LineLength
+    ; Now, loop over each forward character, moving it back one,
+    ;  and also emitting it to screen
+    dex
+    stx SaveX
+@lp:
+    cpx LineLength
+    beq @done
+    inx
+    lda IN,x
+    dex
+    sta IN,x
+    jsr ViPrintChar
+    inx
+    bne @lp ; always (hopefully)
+@done:
+    ; Store a CR at the end
+    lda #$8D
+    sta IN,x
+    ; Restore X-reg
+    ldx SaveX
+    ; Emit a final space, and then backspace, to delete final character
+    lda #$A0
+    jsr COUT
+    lda #$88
+    jsr COUT
+    jsr BackspaceFromEOL
+    rts
 EnterNormalMode:
     lda #$AD ; '-'
     jsr ChangePrompt
     ; fall through to ResetNormalMode
 ResetNormalMode:
     ; TODO: reset a command or movement-in-progress
+    lda appendModeFlag
+    bpl @appFlagUnset
+    lda #$0
+    sta appendModeFlag
+    jsr TryGoLeftOne
+@appFlagUnset:
 NormalMode:
 .ifdef DEBUG
     jsr PrintState
@@ -632,6 +648,47 @@ EnterInsertMode:
     jmp InsertMode
 NrmMaybeIOut:
 ;
+NrmMaybeA:
+    cmp #$C1 ; 'A'
+    bne @nf
+    cpx LineLength
+    beq @atEnd
+    lda #$FF
+    sta appendModeFlag ; so exiting insert mode drops cursor back one char
+    jsr TryGoRightOne
+@atEnd:
+    jmp EnterInsertMode
+@nf:
+NrmMaybeX:
+    cmp #$D8 ; 'X'
+    bne @nf
+    ; equivalent to forward-one-then-BS, unless at end of line
+    cpx LineLength
+    beq @fail
+    inx
+    lda #$A0 ; SP - just print anything at all for position's sake,
+             ; we're about to BS over it anyhow
+    jsr COUT
+    jsr Backspace
+@fail:
+    jmp ResetNormalMode
+@nf:
+NrmMaybeDELorBS:
+    cmp #$FF ; DEL
+    beq @eq
+    cmp #$88 ; LeftArrow/BS
+    bne @nf
+@eq:
+    jsr Backspace
+    jmp ResetNormalMode
+@nf:
+NrmMaybeCtrlX:
+    cmp #$98
+    bne @nf ;-> try 'nother char
+    ; XXX - if EnterInsertMode does cleanup, we should do that
+    ;  here as well, as we're leaving NormalMode
+    jmp DoAbortLine
+@nf:
 NrmMaybeCR:
     cmp #$8D ; CR
     bne @nf
@@ -661,14 +718,26 @@ NrmMaybeZero:
     ldx #0
     jmp ResetNormalMode
 @nf:
+NrmMaybeCarat:
+    cmp #$DE ; '^'
+    bne @nf
+    jsr BackspaceToStart
+    ldx #0
+    lda IN,x
+    jsr GetIsWordChar
+    bcc NrmWordFwd
+    jmp ResetNormalMode
+@nf:
 NrmMaybeW:
     cmp #$D7 ; 'W'
-    bne @nf
+    bne NrmMaybeWOut
+NrmWordFwd:
     stx SaveA ; nevermind the name...
     jsr MoveForwardWord
     jsr PrintForwardMoveFromSaveA
     jmp ResetNormalMode
-@nf:
+NrmMaybeWOut:
+;
 NrmMaybeB:
     cmp #$C2 ; 'B'
     bne @nf
@@ -872,3 +941,5 @@ LineLength:
     .byte 0
 TmpWord:
     .word 0
+appendModeFlag:
+    .byte 0
