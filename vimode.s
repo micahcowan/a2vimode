@@ -221,31 +221,12 @@ CheckForGetline:
     lda #<(ViModeEntry-1)
     pha
 InitViModeAndGetStarted:
-    jsr InitViMode
     ;lda SaveA - no, this should always be a space, since we cleared.
     ; We're KSW, but we're returning to restart the prompt with a "real"
     ; KSW. Just load SPACE and return, hopefully the DOS hook doesn't
     ; care the value
     lda #$A0
     rts
-InitViMode:
-    ; Install direct keyin fn (no GETLN check)
-    lda #<RealInput
-    sta InputRedirFn
-    lda #>RealInput
-    sta InputRedirFn+1
-    ; Fill the inbuf with CRs
-    lda #$8D
-    ldx #0
-@lp:
-    sta IN,x
-    inx
-    bne @lp
-    ; Set the current line length
-    stx LineLength
-    jmp CLREOL ; ensure that everything on our line is actually
-               ; in the input buffer, as well as on screen...
-               ; by clearing the line out that we're on.
 TryOneCallBack:
     inx
     inx
@@ -305,14 +286,31 @@ GetlineID:
     ; bytes that represent call-returns to RDCHAR and GETLINE
     .byte $37, $FD, $77, $FD, $00
 ViModeGetline:
-    ; We never reach here. But it's here anyway, in case anyone ever
-    ; wants to _explicitly_ call our GetLine...
-    ; TODO: write the prompt and stuff like GetLine does. 
-    ;       Also, set up X-reg.
-    jsr InitViMode
-    ; fall through to InsertMode
-InsertMode:
+    ; Call to here if you want an explicit call to _our_ GETLN.
+    ; Print the prompt...
+    lda PROMPT
+    jsr COUT
+    ; fall through to general initialization, and then on to insert-mode
 ViModeEntry:
+InitViMode:
+    ; Install direct keyin fn (no GETLN check)
+    lda #<RealInput
+    sta InputRedirFn
+    lda #>RealInput
+    sta InputRedirFn+1
+    ; Fill the inbuf with CRs
+    lda #$8D
+    ldx #0
+@lp:
+    sta IN,x
+    inx
+    bne @lp
+    ; Set the current line length
+    stx LineLength
+    jsr CLREOL ; ensure that everything on our line is actually
+               ; in the input buffer, as well as on screen...
+               ; by clearing the line out that we're on.
+InsertMode:
 .ifdef DEBUG
     jsr PrintState
 .endif
@@ -354,7 +352,7 @@ MaybeLeftArrow:
     jmp InsertMode
 MaybeRightArrow:
     cmp #$95
-    bne MaybeCR ;-> try 'nother char
+    bne MaybeCtrlX ;-> try 'nother char
     ; Try to go right.
     cpx LineLength
     beq NoRoomRight
@@ -365,6 +363,24 @@ MaybeRightArrow:
     jsr ViPrintChar
     inx
     jmp InsertMode
+MaybeCtrlX:
+    cmp #$98
+    bne MaybeCtrlV ;-> try 'nother char
+    jsr PrintRestOfLine
+    ldx LineLength
+    lda #$A0
+    jsr COUT
+    lda #$DC ; '\'
+    jsr COUT
+    lda #$8D ; CR
+    jsr COUT
+    jmp ViModeGetline
+MaybeCtrlV:
+    cmp #$96
+    bne MaybeCR ;-> try 'nother char
+    ; do a direct read, and insert it, whatever it may be
+    jsr RDKEY
+    jmp TryInsertChar
 MaybeCR:
     cmp #$8D
     beq DoCR
@@ -472,8 +488,12 @@ InsertOk:
     inx
     ; Now print the character
     jsr ViPrintChar
-PrintRestOfLine:
     ; Print the rest of the line out after the new char
+    jsr PrintRestOfLine
+    ; need to backspace back again
+    jsr BackspaceFromEOL
+    jmp InsertMode
+PrintRestOfLine:
     stx SaveX
     cpx LineLength
     beq @out
@@ -484,9 +504,7 @@ PrintRestOfLine:
     bne @lp
 @out:
     ldx SaveX
-    ; need to backspace back again
-    jsr BackspaceFromEOL
-    jmp InsertMode
+    rts
 BackspaceToStart:
     txa
     tay
