@@ -886,11 +886,13 @@ MoveWhileNotWord:
 MoveForwardWord:
     stx @privSave0
     jsr MoveWhileWord
+    lda IN,x
     jsr GetIsWordChar
     bcs @giveUp     ; give up if we never managed to leave a word
     jsr MoveWhileNotWord
     cpx LineLength  ; give up if we're past the end
     beq @giveUp
+    lda IN,x
     jsr GetIsWordChar
     bcc @giveUp     ; or if we're not at a new word
     ; We made it!
@@ -902,10 +904,26 @@ MoveForwardWord:
     .byte 0
 MoveForwardWordEnd:
     stx @privSave0
+    lda IN,x
+    jsr GetIsWordChar
+    bcc @start
+    cpx LineLength
+    beq @start
+    inx ; Ensure we move at least one caracter,
+        ; so if we're already at the end of one word
+        ; we find the next
+@start:
     jsr MoveWhileNotWord
+    lda IN,x
     jsr GetIsWordChar
     bcc @giveUp     ; give up if we never managed to enter a word
     jsr MoveWhileWord
+    lda IN,x
+    jsr GetIsWordChar
+    bcs @done ; ensure cursor is on the last word character
+              ; XXX: inappropriate during delete-movement
+    dex
+@done:
     rts
 @giveUp:
     ldx @privSave0
