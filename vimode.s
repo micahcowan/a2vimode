@@ -541,7 +541,7 @@ CoutRowCheck:
 EnterNormalMode:
     lda #$AD ; '-'
     jsr ChangePrompt
-    jmp NormalMode
+    ; fall through to ResetNormalMode
 ResetNormalMode:
     ; TODO: reset a command or movement-in-progress
 NormalMode:
@@ -560,10 +560,26 @@ NormalMode:
 .ifdef DEBUG
 NrmMaybeTab:
     cmp #$89 ; Tab?
-    bne NrmMaybeH
+    bne NrmMaybeCR
     jsr ToggleStatusBar
     jmp ResetNormalMode
 .endif
+NrmMaybeCR:
+    cmp #$8D ; CR
+    bne NrmMaybeEol
+    jmp DoCR
+NrmMaybeEol:
+    cmp #$A4 ; $
+    bne NrmMaybeZero
+    jsr PrintRestOfLine
+    ldx LineLength
+    jmp ResetNormalMode
+NrmMaybeZero:
+    cmp #$B0 ; 0
+    bne NrmMaybeH
+    jsr BackspaceToStart
+    ldx #0
+    jmp ResetNormalMode
 NrmMaybeH:
     cmp #$C8 ; 'H'
     bne NrmMaybeL
