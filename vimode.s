@@ -348,7 +348,7 @@ PrefillFlag = * + 1
     jmp InsertMode
 DbgPrefill:
     ; used to pre-fill the buffer when we first enter
-    scrcode "OH IT'S A ! JOLLY 'OLIDAY"
+    scrcode "   OH IT'S A ! JOLLY 'OLIDAY"
     .byte 0
 .endif
 InsertMode:
@@ -657,6 +657,19 @@ NrmMaybeW:
     jsr PrintForwardMoveFromSaveA
     jmp ResetNormalMode
 @nf:
+NrmMaybeB:
+    cmp #$C2 ; 'B'
+    bne @nf
+    stx SaveA ; nevermind the name...
+    jsr MoveBackWord
+    stx SaveX
+    lda SaveA
+    sec
+    sbc SaveX
+    tay
+    jsr EmitYCntBsp
+    jmp ResetNormalMode
+@nf:
 NrmMaybeE:
     cmp #$C5 ; 'E'
     bne @nf
@@ -739,6 +752,41 @@ GetIsWordChar:
     ; XXX is: word is everything >= #$C1
     cmp #$C1
     rts
+BackWhileWord:
+@lp:
+    cpx #0
+    beq @done
+    dex
+    lda IN,x
+    jsr GetIsWordChar
+    bcs @lp
+    inx ; keep on the word char
+@done:
+    rts
+BackWhileNotWord:
+@lp:cpx #0
+    beq @done
+    dex
+    lda IN,x
+    jsr GetIsWordChar
+    bcc @lp
+    inx ; keep on the non-word char
+        ; we, uh, probably don't need this in reality,
+        ; given that as far as I know we only ever
+        ; follow BackWhileNotWord with BackWhileWord
+@done:
+    rts
+MoveBackWord:
+    stx @privSave
+    jsr BackWhileNotWord
+    cpx #0
+    beq @giveUp ; give up if there was only non-word space to back over
+    jmp BackWhileWord
+@giveUp:
+    ldx @privSave
+    rts
+@privSave:
+    .byte 0
 MoveWhileWord:
 @lp:
     cpx LineLength
