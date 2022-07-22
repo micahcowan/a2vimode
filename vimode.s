@@ -622,6 +622,23 @@ NormalMode:
     sec
     sbc #$20
 @nocvt:
+; START of line-modifying/not-just-movement commands
+NrmMaybeI:
+    cmp #$C9 ; 'I'
+    bne NrmMaybeIOut
+    ; 'I'? fall through
+EnterInsertMode:
+    jsr RestorePrompt
+    jmp InsertMode
+NrmMaybeIOut:
+;
+NrmMaybeCR:
+    cmp #$8D ; CR
+    bne @nf
+    jmp DoCR
+@nf:
+NrmSafeCommands:
+; END of line-modifying commands
 .ifdef DEBUG
 NrmMaybeTab:
     cmp #$89 ; Tab?
@@ -630,11 +647,6 @@ NrmMaybeTab:
     jmp ResetNormalMode
 @nf:
 .endif
-NrmMaybeCR:
-    cmp #$8D ; CR
-    bne @nf
-    jmp DoCR
-@nf:
 NrmMaybeEol:
     cmp #$A4 ; $
     bne @nf
@@ -690,16 +702,9 @@ NrmMaybeL:
     jsr TryGoRightOne
     jmp ResetNormalMode
 @nf:
-NrmMaybeI:
-    cmp #$C9 ; 'I'
-    bne NormalUnrecognized
-    ; fall through
-EnterInsertMode:
-    jsr RestorePrompt
-    jmp InsertMode
 NormalUnrecognized:
     ;jsr BELL
-    jmp NormalMode
+    jmp ResetNormalMode
 RestorePrompt:
     lda PROMPT
     ; fall through
