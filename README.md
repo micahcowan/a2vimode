@@ -1,6 +1,6 @@
 # a2vimode
 ## Introducing a2vimode
-Hello, and welcome to **a2vimode**, which installs **vi**-inspired prompt-line editing facilities! Created for HackFest 2022, a part of KansasFest 2022 (an annual Apple ][ conference)
+Hello, and welcome to **a2vimode**, which installs **vi**-inspired prompt-line editing facilities! Created for [HackFest 2022](https://www.kansasfest.org/hackfest/), a part of KansasFest 2022 (an annual Apple \]\[ conference)
 
 Once the `HELLO` program is run (at startup if you boot from the disk), all text prompts that use the standard firmware prompt routine (DOS, Monitor, BASIC, BASIC Input), will start using vi-mode.
 
@@ -71,11 +71,35 @@ In Normal Mode, the following keys have meaning:
 | **[BS]** | **[BS]** | (left-arrow/backspace, or `DEL`) delete back a character |
 | **X** | **x** | delete *forward* a character |
 
-There is currently no support for the "delete"(-movement), "change"(-movement), "substitute", or "replace" commands found in **vi**; these are planned as future features. For now, you'll have to make do with just left-arrow/`DEL` and `X`.
+There is currently no support for the "delete"(-movement), "change"(-movement), "substitute", or "replace" commands found in **vi**; these are planned as future features. For now, you'll have to make do with just left-arrow/`DEL` and `X` to handle deletions.
 
 ### 80-Column
-## Why Vi-Like?
+To use vi-mode in 80-column mode, first start 80-column mode with `PR#3`, and then `RUN HELLO` to reconnect **vi-mode**. Do not run the `HELLO` program multiple times with 80-column firmware active - if you want to reboot **vi-mode**, do another `PR#3` followed by `RUN HELLO`.
+
+And don't touch the `ESC` key! Use `TAB` to enter normal mode.
+
 ## Can I use Vi-Mode with ProDOS?
+Not currently. Everything works fine for the prompt itself, but
+
+ 1. it interferes with DOS commands in a way I don't yet understand, and
+ 2. I haven't written the (simple) bootstrapper program for it yet, just hacked it into place to test briefly.
+
+Expect ProDOS support soon!
+
+## Why Vi-Like?
+
+**Q: "Micah, why on earth did you choose *vi* as the model? Why not use a single mode for moving *and* inserting?**
+
+A: Because it's *my* hackfest project, and having vi-mode in the prompt is more fun for me! Plus, I hope to eventually add support for vi's `f`, `t`, `,`, and `;` commands (which a surprising number of vi users appear not to know about, but are among my most-used commands!), and using those definitely warrants having a separate movement mode, in my opinion.
+
 ## Problems and Short-Comings
+
+ * The ability to go and grab content off the screen is lost now.
+ * No PROdos support (yet).
+ * 80-column mode is somewhat fragile, and occasionally annoying. This is due chiefly to the fact that 80-col `RDKEY` automatically a number of things that the standard firmware doesn't, and I wish it wouldn't. I may resolve these issues by avoiding `RDKEY` in the future, but for now I'm stuck with it.
+ * It really wants the **d** and **c** commands from **vi**... and **y** and **p** for copy/paste would be nice too. I plan to add these soon.
+ * Due to the way **a2vimode** detects and wrests away control from the firmware `GETLN` routine, there is a small-but-not-zero chance of mistaking some values on the stack for return addresses, that aren't, and consequently breaking some function up the call stack.
+
 ## How Does It Work?
-## Missing Features
+
+**a2vimode** looks at the stack to see if its immediate caller, or one just behind, is `RDCHAR` that in turn has been called by `GETLN`. If it sees them, it disables `RDCHAR` with a return to an `RTS` op, and replaces the return to `GETLN` with a return into our own specialized replacement prompter! 😈
