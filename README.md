@@ -1,4 +1,8 @@
 # a2vimode
+
+[**Download the disk image here**](https://github.com/micahcowan/a2vimode/releases/) (be sure to expand the "assets" for a release)<br />
+[**Try it out in an online emulator here**](http://micah.cowan.name/apple2js/apple2jse.html#vi-mode) (but *READ THESE INSTRUCTIONS* on how to use!)
+
 ## Introducing a2vimode
 Hello, and welcome to **a2vimode**, which installs **vi**-inspired prompt-line editing facilities! Created for [HackFest 2022](https://www.kansasfest.org/hackfest/), a part of KansasFest 2022 (an annual Apple \]\[ conference)
 
