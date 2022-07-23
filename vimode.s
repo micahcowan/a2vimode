@@ -190,35 +190,51 @@ PrintStack:
 @SvBASE: .word 0
 @SvCH:.byte 0
 .endif ; DEBUG
-CheckForGetline:
-    ; Have a peek up our stack to see if our key-input
-    ; routine has been called from GETLINE (via RDCHAR, and 
-    ; possibly a DOS or ProDOS KSW hook). If it has,
-    ; we (a) remove the return to RDCHAR entirely
-    ; (it does special ESC-key processing that we wish
-    ; to subvert!), and (b) replace the return to GETLINE with
-    ; a return back to our GETLINE-replacement routine instead! >:-]
+    CheckForGetline:
+    ; The vi-mode prompt works by detecting and *replacing* what had
+    ; been a call from the firmware `GETLN` routine at `$FD78`.  `GETLN`
+    ; isn't hookable, so instead we hook into `KSW` (the input routine),
+    ; and *look back at the stack* to see if it looks like we were
+    ; called, indirectly, from `GETLN`. If we find `GETLN`'s address
+    ; (minus 1) on the stack, with the right chain of calls appearing to
+    ; lead from it to us, then we replace `GETLN`'s return address with
+    ; one of our own choosing, thus automatically replacing `GETLN`
+    ; every time it's called, with our vi-mode substitute.
+    ;
+    ; The notion of "looks like we were called indiretly from GETLN" is
+    ; a bit involved. We don't want to just find `GETLN`'s address in
+    ; the last ~8 bytes of stack, because it could just be there through
+    ; happenstance: an old stack value that's been abandoned due to a
+    ; `RESET` perhaps, or even `PHA TYA PHA` would put it there, if the
+    ; `A` and `Y` registers have just the right values. Too risky.
+    ;
+    ; But there are also multiple ways that `GETLN` can lead to calling
+    ; the `KSW` hook routine. On the original Apple II, `GETLN` just
+    ; calls `RDCHAR`, which calls `KSW`. At least under emulation, the
+    ; Apple II+, unenhanced Apple IIe, and enhanced Apple IIe, all look
+    ; the same as original Apple II.
+    ;
+    ; *But*. On an Apple //c, things get "fancy". The firmware location
+    ; for `RDCHAR` is a placeholder that jumps to the "real" location,
+    ; in `$CXXX` ROM space somewhere, which then calls 'KSW'. This is true
+    ; for all original ROMs I could find (from ROM 255 to the "memory
+    ; enhanced" models).  So instead of looking for `RDCHAR`'s return
+    ; address, we need to look for a different one Then, on the
+    ; unofficial/user-created ROM 4X, there's yet *another* caller
+    ; address within the `$CXXX` ROM space that's involved!
+    ;
+    ; So... to find a "real" indirect call from (eventually) `GETLN`,
+    ; what we look for on the stack is (first = nearest):
+    ;
+    ;   ????? { `RDCHAR` *or* either one or two $CXXX addresses } `GETLN`
+    ;
+    ; That is, we optionally skip one irrelevant address (presumed to be
+    ; a DOS or ProDOS wrapper), and recognize either the return address
+    ; from `RDCHAR` (`$FD37`), or else either one or two address in
+    ; the `$CXXX` range, and finally (always) the return address from
+    ; `GETLN`, `$FD77`.
 
-    ; We check for one of two scenarios: either the GETLINE and RDCHAR
-    ; return addresses are _immediately_ behind us (no DOS hooks),
-    ; or they are two bytes back, with an intervening DOS hook between.
-    sta SaveA
-    stx SaveX
-    tsx
-    inx
-    jsr FindGetlineHere
-    bne TryOneCallBack ; We didn't find it, try a couple bytes back
-    ; Found it! with no DOS hooks or indirects
-    ; ...just remove the last two returns, and set us up to return
-    ;  to _our_ GETLINE
-    pla
-    pla
-    pla
-    pla
-    lda #>(ViModeEntry-1)
-    pha
-    lda #<(ViModeEntry-1)
-    pha
+    ;
 InitViModeAndGetStarted:
     ;lda SaveA - no, this should always be a space, since we cleared.
     ; We're KSW, but we're returning to restart the prompt with a "real"
@@ -226,65 +242,6 @@ InitViModeAndGetStarted:
     ; care the value
     lda #$A0
     rts
-TryOneCallBack:
-    inx
-    inx
-    jsr FindGetlineHere
-    beq FoundOneBack ; we found it a couple bytes up the stack; handle
-    lda SaveA
-    ldx SaveX
-    jmp RealInput ; we didn't find it, so just do a normal keyboard input
-FoundOneBack:
-    ; We want to delete the returns to RDCHAR and GETLINE, and
-    ; replace with ViModeEntry; but we still want to return to
-    ; whatever DOS hook or whatever called us _first_. Then _that_ can
-    ; return to ViMode.
-    ;
-    ; ALSO - it's not safe to actually delete anything from the
-    ; callstack - the DOS hook is liable to RESTORE it before it exits!
-    ; So instead we replace RDCHAR's return with a reference
-    ; directly to a RTS - a return is still there, but RDCHAR
-    ; is successfully elided.
-
-    ; First, overwrite the RDCHAR retval with a harmless RTS
-    lda #<(KnownRTS-1)
-    sta $100,x
-    inx
-    lda #>(KnownRTS-1)
-    sta $100,x
-    ; Then overwrite GETLINE return with ours
-    inx
-    lda #<(ViModeEntry-1)
-    sta $100,x
-    inx
-    lda #>(ViModeEntry-1)
-    sta $100,x
-    jmp InitViModeAndGetStarted
-FindGetlineHere:
-    ; trounces A (presumed to be saved), but preserves X
-    stx SaveSearchX
-    sty SaveY
-    ldy #0
-@lp:
-    lda GetlineID,y
-    beq @out ; complete match!
-    cmp $100,x
-    bne @out ; not a match, exit
-    ; match so far, try next byte
-    inx
-    iny
-    bne @lp
-@out:
-    php
-    ldy SaveY
-    ldx SaveSearchX
-    plp ; preserve Z flag (EQ/NE)
-KnownRTS:
-    rts
-GetlineID:
-    ; bytes that represent call-returns to RDCHAR and GETLINE
-    .byte $37, $FD, $77, $FD, $00
-
 
 ViModeGetline:
     ; Call to here if you want an explicit call to _our_ GETLN.
