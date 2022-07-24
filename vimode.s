@@ -236,9 +236,9 @@ PrintStack:
     ; first/throwaway caller - it can't have $FD or $Cx in the high
     ; byte; we assume DOS hooks wouldn't come from there.)
 
-    sta saveA
-    stx saveX
-    sty saveY
+    sta SaveA
+    stx SaveX
+    sty SaveY
 
     tsx ; get stack pointer
     inx ;  and point at first byte of caller above us
@@ -301,7 +301,7 @@ PrintStack:
     ;   caller.
     dex
     dex
-@maybeGetln
+@maybeGetln:
     ; if we get here, we're at the byte before what needs to be GETLN
     ; to successfully match.
     inx ; check the low byte first
