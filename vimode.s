@@ -23,7 +23,7 @@ SETNORM = $FE84
 BELL = $FF3A
 
 RET_RDCHAR = $FD37
-RET_GETLINE= $FD77
+RET_GETLN  = $FD77
 
 ;DEBUG=1
 
@@ -38,11 +38,11 @@ kMaxLength = $30 ; 48
 Input:
 InputRedirFn = * + 1
     ; The address of the following JMP will be _rewritten_
-    ; to jump directly to keyboard inputs, when GETLINE
+    ; to jump directly to keyboard inputs, when GETLN
     ; has been detected (and replaced). It will be restored
-    ; to CheckForGetline once our replacement GETLINE routine
+    ; to CheckForGetline once our replacement GETLN routine
     ; has exited (so that future inputs once again check for
-    ; GETLINE)
+    ; GETLN)
     jmp CheckForGetline
     jmp CheckForGetline ; we say it twice, so the bootstrapper
                         ; knows what it should look like :)
@@ -216,25 +216,142 @@ PrintStack:
     ;
     ; *But*. On an Apple //c, things get "fancy". The firmware location
     ; for `RDCHAR` is a placeholder that jumps to the "real" location,
-    ; in `$CXXX` ROM space somewhere, which then calls 'KSW'. This is true
+    ; in `$Cxxx` ROM space somewhere, which then calls 'KSW'. This is true
     ; for all original ROMs I could find (from ROM 255 to the "memory
     ; enhanced" models).  So instead of looking for `RDCHAR`'s return
     ; address, we need to look for a different one Then, on the
     ; unofficial/user-created ROM 4X, there's yet *another* caller
-    ; address within the `$CXXX` ROM space that's involved!
+    ; address within the `$Cxxx` ROM space that's involved!
     ;
     ; So... to find a "real" indirect call from (eventually) `GETLN`,
     ; what we look for on the stack is (first = nearest):
     ;
-    ;   ????? { `RDCHAR` *or* either one or two $CXXX addresses } `GETLN`
+    ;   ????? { `RDCHAR` *or* either one or two $Cxxx addresses } `GETLN`
     ;
     ; That is, we optionally skip one irrelevant address (presumed to be
     ; a DOS or ProDOS wrapper), and recognize either the return address
     ; from `RDCHAR` (`$FD37`), or else either one or two address in
-    ; the `$CXXX` range, and finally (always) the return address from
-    ; `GETLN`, `$FD77`.
+    ; the `$Cxxx` range, and finally (always) the return address from
+    ; `GETLN`, `$FD77`. (We don't accept *any* address for the optional
+    ; first/throwaway caller - it can't have $FD or $Cx in the high
+    ; byte; we assume DOS hooks wouldn't come from there.)
 
+    sta saveA
+    stx saveX
+    sty saveY
+
+    tsx ; get stack pointer
+    inx ;  and point at first byte of caller above us
+
+    ;;; Look at the high byte of our immediate caller
+    inx
+    lda $100,x
+    cmp #$C0
+    bcc @firstCaller ; -> this caller is < #$C000, it's a "freebie" we
+                     ;    don't count; check next caller as the "real" first
+    ; >= #$C00
+    cmp #$D0
+    bcc @secondCaller ; -> this caller is our first of up to two #$Cxxx
+                      ;    callers; head to the next.
+    cmp #>RET_RDCHAR
+    bne @checkFailed  ; -> This caller matches none of our criteria. Bail.
+    ; Check the low byte.
+    dex
+    lda $100,x
+    cmp #<RET_RDCHAR
+    bne @checkFailed ; -> Not RDCHAR after all. Bail.
+    inx
+    jmp @maybeGetln ; this was RDCHAR, so next must be GETLN to pass.
+
+@firstCaller:
+    ; If we reach here, we're on the high byte of the first caller after
+    ; what we assume to have been some DOS's wrapper routine, and skipped.
+    ; to proceed, this has to be the known RDCHAR return, or something
+    ; from $Cxxx (presumed to be some ROM's RDCHAR).
+    inx
+    inx ; move to high byte of first "real" caller.
+    lda $100,x
+    cmp #>RET_RDCHAR
+    bne @firstMaybeCx ; -> Wasn't (known) RDCHAR; maybe a $Cxxx?
+    ; matched high byte of RDCHAR - does it match low?
+    dex
+    lda $100,x
+    cmp #<RET_RDCHAR
+    bne @checkFailed ; -> Not RDCHAR. Bail.
+    inx
+    jmp @maybeGetln ; this was RDCHAR, so next must be GETLN to pass.
+@firstMaybeCx:
+    cmp #$C0
+    bcc @checkFailed ; -> Not RDCHAR, not $Cxxx. Match fails.
+    ; is >= #$C000. Is it < #$D000?
+    cmp #$D0
+    bcs @checkFailed ; -> Not RDCHAR, too high to be $Cxxx. Match fails.
+@secondCaller:
+    ; we're the first of up to two $Cxxx callers. Check to see if
+    ; there's another.
+    inx
+    inx
+    lda $100,x
+    cmp #$C0
+    bcc @checkFailed ; -> Not $Cxxx, and too low to be GETLN. Failed.
+    ; is >= #$C000. Is it < #$D000?
+    cmp #$D0
+    bcc @maybeGetln ; -> Is $Cxxx. Next one must be GETLN.
+    ; not $Cxxx. THIS must be GETLN to pass, so back up to re-check this
+    ;   caller.
+    dex
+    dex
+@maybeGetln
+    ; if we get here, we're at the byte before what needs to be GETLN
+    ; to successfully match.
+    inx ; check the low byte first
+    lda $100,x
+    cmp #<RET_GETLN
+    bne @checkFailed
+    ; so far so good...
+    inx
+    lda $100,x
+    cmp #>RET_GETLN
+    bne @checkFailed
+
+    ; Eureka! We have it.
+    ; Now, swap it for ours.
+    lda #>(ViModeEntry-1)
+    sta $100,x
+    dex
+    lda #<(ViModeEntry-1)
+    sta $100,x
+
+    ; ...and return.
     ;
+    ; ...We're going to land in "our" ViMode, so why don't we go ahead
+    ; and prompt for the first character?
+    ;
+    ; Two reasons. (1) RDCHAR will interpret special characters like
+    ; ESC, and let the cursor go and wander off. We don't want that -
+    ; we want to return immediaely to our prompt, which never calls
+    ; RDCHAR (though even normal RDKEY will process ESC, on a //c or in
+    ; 80-column mode :( )
+    ; (2) Cosmetic. the RDCHAR above us will have already
+    ; stored the visible character our cursor was on, if there was text
+    ; present before the prompt was issued. It winds up looking kinda
+    ; tacky in some situations.
+    ;
+    ; So we just return a "harmless" SPACE character, which we've
+    ; arranged for our ViMode prompt to ignore and re-take the first
+    ; "real" character.
+    ldx SaveX
+    ldy SaveY
+    lda #$A0
+    rts
+
+@checkFailed:
+    ; Just do an absolutely ordeinary input fetch.
+    lda SaveA
+    ldx SaveX
+    ldy SaveY
+    jmp RealInput
+
 InitViModeAndGetStarted:
     ;lda SaveA - no, this should always be a space, since we cleared.
     ; We're KSW, but we're returning to restart the prompt with a "real"
