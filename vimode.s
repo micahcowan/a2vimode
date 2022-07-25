@@ -3,21 +3,26 @@
 
 .macpack apple2
 
+WNDBTM = $23
 CH = $24
 CV = $25
 BASE = $28
 INVFLAG = $32
 PROMPT = $33
+CSW = $36
 
 IN = $200
 VTAB = $FC22
-WAIT = $FCA8
 VTABZ = $FC24
+SCROLL = $FC70
 CLREOL = $FC9C
+WAIT = $FCA8
 RDKEY = $FD0C
 KEYIN = $FD1B
+CROUT = $FD8E
 PRBYTE = $FDDA
 COUT = $FDED
+COUT1 = $FDF0
 SETINV = $FE80
 SETNORM = $FE84
 BELL = $FF3A
@@ -25,12 +30,16 @@ BELL = $FF3A
 RET_RDCHAR = $FD37
 RET_GETLN  = $FD77
 
-;DEBUG=1
 
-.ifndef DEBUG
+STAT_BASE = $750 ; line 22
+STRC_BASE = $7D0 ; line 23 (last line)
+
+DEBUG=1
+
 kMaxLength = $FE
 .else
-kMaxLength = $30 ; 48
+;kMaxLength = $30 ; 48
+kMaxLength = $FE
 .endif
 
 .org $6000
@@ -62,12 +71,12 @@ PrintState:
     ; Save screen coordinates, and go to top-left
     lda CH
     sta SavedCH
-    lda CV
-    sta SavedCV
     lda #0
     sta CH
-    sta CV
-    jsr VTABZ
+    lda #<STAT_BASE
+    sta BASE
+    lda #>STAT_BASE
+    sta BASE+1
 
     lda INVFLAG
     pha
@@ -102,12 +111,8 @@ PrintState:
     ; Restore screen coords and peace out
     lda SavedCH
     sta CH
-    lda SavedCV
-    sta CV
-
     ldx SaveX
-
-    jmp VTABZ
+    jmp VTAB
 @xPr:
     pha
     jsr SETNORM
@@ -117,53 +122,111 @@ PrintState:
     jmp @sp
 StatusBarOn:
     .byte $00 ; off by default
-ToggleStatusBar:
-    lda StatusBarOn
-    eor #$FF
-    sta StatusBarOn
-    bmi @done
+StatusBarSetup:
+    ; Ensure the current line is above the status display area
+@again:
+    lda CV
+    cmp #$16
+    bcc @setwbt
+    sbc #1 ; we already know carry is set (borrow = clear)
+    sta CV
+    jsr SCROLL ; does VTAB
+    jmp @again
+@setwbt:
+    lda #$16
+    sta WNDBTM
+    rts
+StatusBarCleanup:
     ; We just switched status bar off; go and erase it
     lda CH
     sta SavedCH
-    lda CV
-    sta SavedCV
 
     lda #0
     sta CH
-    sta CV
+    lda #$16
     jsr VTABZ
-
+    jsr CLREOL
+    lda #$17
+    jsr VTABZ
     jsr CLREOL
 
     lda SavedCH
     sta CH
-    lda SavedCV
-    sta CV
+    lda CV
     jsr VTABZ
-@done:
+    lda #$18
+    sta WNDBTM
+    rts
+ToggleStatusBar:
+    lda StatusBarOn
+    eor #$FF
+    sta StatusBarOn
+    bmi @statusOn
+    ; status bar switched off; clean it up
+    jmp StatusBarCleanup
+@statusOn:
+    jmp StatusBarSetup
+    ;
+PrintStackTraceSuccess:
+    jsr StackTraceSetup
+    ; indicate that we did detect GETLN
+    lda #$D9 ; Y
+    jsr COUT
+    lda #$C5 ; E
+    jsr COUT
+    lda #$D3 ; S
+    jsr COUT
+    lda #$A0 ; SPC
+    jsr COUT
+    jmp PrintStack
+PrintStackTraceFailed:
+    jsr StackTraceSetup
+    ; indicate that we did NOT detect GETLN
+    lda #$CE ; N
+    jsr COUT
+    lda #$CF ; O
+    jsr COUT
+    lda #$A0 ; SPC
+    jsr COUT
+    lda #$A0 ; SPC
+    jsr COUT
+    jmp PrintStack
+StackTraceSetup:
+    ; save position
+    lda BASE
+    sta StSvBASE
+    lda BASE+1
+    sta StSvBASE+1
+    lda CH
+    sta StSvCH
+    ; set position
+    lda #0
+    sta CH
+    lda #<STRC_BASE
+    sta BASE
+    lda #>STRC_BASE
+    sta BASE+1
+    ; force direct screen output for COUT -
+    ;   we don't want to be re-entering DOS hooks...
+    ; (but save away existing CSW first)
+    lda CSW
+    sta StSvCSW
+    lda CSW+1
+    sta StSvCSW+1
+
+    lda #<COUT1
+    sta CSW
+    lda #>COUT1
+    sta CSW+1
     rts
 PrintStack:
     ; This is for debugging, but... calling it from within a DOS call
     ; will probably munge things
-    sta @SvA
-    stx @SvX
-    sty @SvY
-    lda BASE
-    sta @SvBASE
-    lda BASE+1
-    sta @SvBASE+1
-    lda CH
-    sta @SvCH
-    lda #0
-    sta CH
-    sta BASE
-    lda #$4
-    sta BASE+1
     tsx
-    inx ; Skip over our own call
+    inx ; Skip over PrintStack's own call (heh)
     inx
     inx
-    ldy #6
+    ldy #$0A ; print 10 bytes of stack
 @Lp:
     lda #$A0
     jsr COUT
@@ -172,23 +235,22 @@ PrintStack:
     inx
     dey
     bne @Lp
-    ;
+    ; cleanup
     jsr CLREOL
-    lda @SvBASE
+    lda StSvBASE
     sta BASE
-    lda @SvBASE+1
+    lda StSvBASE+1
     sta BASE+1
-    lda @SvCH
+    lda StSvCH
     sta CH
-    lda @SvA
-    ldx @SvX
-    ldy @SvY
+    lda StSvCSW
+    sta CSW
+    lda StSvCSW+1
+    sta CSW+1
     rts
-@SvA: .byte 0
-@SvX: .byte 0
-@SvY: .byte 0
-@SvBASE: .word 0
-@SvCH:.byte 0
+StSvBASE: .word 0
+StSvCSW: .word 0
+StSvCH:.byte 0
 .endif ; DEBUG
     CheckForGetline:
     ; The vi-mode prompt works by detecting and *replacing* what had
@@ -239,6 +301,22 @@ PrintStack:
     sta SaveA
     stx SaveX
     sty SaveY
+
+.ifdef DEBUG
+    clc
+    sec
+    bcs @skipUninstall
+    ; We never reach here.
+    ; This code is here for us to hack,
+    ; if we want to insert BRKs to see what's being reached.
+    ; You can't type into the monitor if you're using the same
+    ; input function you're debugging...
+    lda #<RealInput
+    sta InputRedirFn
+    lda #>RealInput
+    sta InputRedirFn+1
+@skipUninstall:
+.endif ; DEBUG
 
     tsx ; get stack pointer
     inx ;  and point at first byte of caller above us
@@ -315,6 +393,15 @@ PrintStack:
     bne @checkFailed
 
     ; Eureka! We have it.
+.ifdef DEBUG
+    ; possibly print the status bar
+    lda StatusBarOn ; (may have come here without toggle)
+    bpl @nostatus
+    stx SaveA ; never mind the name...
+    jsr PrintStackTraceSuccess
+    ldx SaveA
+@nostatus:
+.endif ; DEBUG
     ; Now, swap it for ours.
     lda #>(ViModeEntry-1)
     sta $100,x
@@ -347,10 +434,38 @@ PrintStack:
 
 @checkFailed:
     ; Just do an absolutely ordeinary input fetch.
+.ifndef DEBUG
     lda SaveA
     ldx SaveX
     ldy SaveY
     jmp RealInput
+.else
+@reread:
+    ; DEBUG mode.
+    ; We only check for one key: Ctrl-\ to enable the debug status bar.
+    ; Then we print the stack info we just rejected, and check
+    ; keypresses again.
+    lda StatusBarOn
+    bpl @done
+    jsr PrintStackTraceFailed
+    lda SaveA
+    ldx SaveX
+    ldy SaveY
+    jsr RealInput
+    sta SaveA
+    stx SaveX
+    sty SaveY
+    cmp #$DC ; \
+    bne @done
+    ; \ pressed
+    jsr ToggleStatusBar
+    jmp @reread
+@done:
+    lda SaveA
+    ldx SaveX
+    ldy SaveY
+    rts
+.endif ; DEBUG
 
 InitViModeAndGetStarted:
     ;lda SaveA - no, this should always be a space, since we cleared.
