@@ -82,14 +82,6 @@ To use vi-mode in 80-column mode, first start 80-column mode with `PR#3`, and th
 
 And don't touch the `ESC` key! Use `TAB` to enter normal mode.
 
-## Can I use Vi-Mode with ProDOS?
-Not currently. Everything works fine for the prompt itself, but
-
- 1. it interferes with DOS commands in a way I don't yet understand, and
- 2. I haven't written the (simple) bootstrapper program for it yet, just hacked it into place to test briefly.
-
-Expect ProDOS support soon!
-
 ## Why Vi-Like?
 
 **Q: "Micah, why on earth did you choose *vi* as the model? Why not use a single mode for moving *and* inserting?**
@@ -110,7 +102,6 @@ a2vimode's Makefile assumes all of these tools are accessible from the current `
 ## Problems and Short-Comings
 
  * The ability to go and grab content off the screen is lost now.
- * No PROdos support (yet).
  * 80-column mode is somewhat fragile, and occasionally annoying. This is due chiefly to the fact that 80-col `RDKEY` automatically a number of things that the standard firmware doesn't, and I wish it wouldn't. I may resolve these issues by avoiding `RDKEY` in the future, but for now I'm stuck with it.
  * It really wants the **d** and **c** commands from **vi**... and **y** and **p** for copy/paste would be nice too. I plan to add these soon.
  * Due to the way **a2vimode** detects and wrests away control from the firmware `GETLN` routine, there is a small-but-not-zero chance of mistaking some values on the stack for return addresses, that aren't, and consequently breaking some function up the call stack.
