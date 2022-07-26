@@ -491,6 +491,10 @@ InitViMode:
     sta InputRedirFn
     lda #>RealInput
     sta InputRedirFn+1
+    ; Save our stack position - we need it to help dodge a dirty trick
+    ; from ProDOS (see comments for MyRDKEY).
+    tsx
+    stx SaveS
     ; Fill the inbuf with CRs
     lda #$8D
     ldx #0
@@ -542,7 +546,7 @@ PrefillFlag = * + 1
     jmp InsertMode
 DbgPrefill:
     ; used to pre-fill the buffer when we first enter
-    scrcode "   OH IT'S A ! JOLLY 'OLIDAY"
+    scrcode "HELLO, WORLD!"
     .byte 0
 .endif
 InsertMode:
@@ -835,7 +839,7 @@ NormalMode:
     ; in our normal mode, lowercase should be converted to upper.
     cmp #$E0    ; < 'a' ?
     bcc @nocvt  ; -> no
-    cmp #$FA    ; >= '{' ?
+    cmp #$FA    ; >= '{' 
     bcs @nocvt
     sec
     sbc #$20
@@ -1162,7 +1166,71 @@ ReadWait:
     pla
     rts
 .if 1
-MyRDKEY = RDKEY
+MyRDKEY:
+    ; ProDOS is a silly bully, and plays games with us that it
+    ; shouldn't.
+    ; Of course, we can hardly complain, since we're playing a silly
+    ; trick on _it_, by replacing its call to GETLN, which ProDOS
+    ; knows how to abuse, with our replacement, which ProDOS does not
+    ; know.
+    ;
+    ; But anyway, when the RETURN key is pressed by a user while it's in
+    ; ProDOS's KSW handler, ProDOS pre-emptively inserts a CR at
+    ; IN,x - which we don't want because the x-reg isn't necessarily at
+    ; the end of the line, in our case. If the line buffer contains a
+    ; ProDOS command, then ProDOS - before even returning control to us
+    ; so we can tell it what the typed command was! - ProDOS clears the
+    ; rest of the line, executes its command, sets the X-reg to 0
+    ; (thinking that this will fool us into thinking the user never
+    ; typed anything yet in the first place - as that's what GETLN would
+    ; think), and returns a backspace character, which would cause GETLN
+    ; to re-issue the prompt.
+    ;
+    ; To work around this, we do two things: We save the X-reg away and
+    ; set it to the end of the line (without touching CH, so the cursor
+    ; is still displayed in the right place). This also makes it totally
+    ; okay if ProDOS sticks a CR there - it's already supposaed to be a
+    ; CR. Then, we watch and see if the X-reg was _reset to zero_ and we
+    ; got a backspace; in which case we restart the prompt - ProDOS has
+    ; _already_ processed our current command, so throw it away like it
+    ; tried to make us do.
+    ;
+    ; The one issue that isn't solved by this technique, is that if the
+    ; user hit RETURN while still in the *middle* of a ProDOS command,
+    ; ProDOS will delete the end of the line that's showing on the
+    ; screen (even though, by setting X-reg to the end, we ensure the
+    ; stored command is safe). Not much we can do about that, really,
+    ; since it happens before we're even allowed to know about it.
+    stx SaveX
+    ldx LineLength
+    jsr RDKEY
+    pha
+        lda LineLength
+        bne @nonzero
+    ; LineLength was 0, so we don't have to worry about ProDOS
+    ; having played any tricks.
+    pla
+@out:
+    ldx SaveX ; (not needed if we fell through from above)
+    rts
+@nonzero:
+    pla
+    cmp #$88 ; backspace?
+    bne @out ; -> no, just return it then
+    cpx #0   ; X-reg got reset?
+    bne @out
+    ; We got played! ...Go ahead and play along, restart the prompt.
+
+    ; XXX what do we do here? We can't RTS and keep processing as
+    ; usual (we could have come from ReadDelay, for instance),
+    ; but neither can we just jmp to ViModeGetline - we have an unknown
+    ; number of call returns on the stack between us and it.
+    ; Could do like DOS, and save stack position on ViModeEntry?
+    ; .... yeah, think we'll go with that.
+    ldx SaveS
+    txs
+    jsr CROUT ; Send a CR, as GETLN would
+    jmp ViModeGetline
 .else
 MyRDKEY:
     lda $38
@@ -1187,6 +1255,8 @@ SaveA:
 SaveX:
     .byte 0
 SaveY:
+    .byte 0
+SaveS:
     .byte 0
 SavedCH:
     .byte 0
