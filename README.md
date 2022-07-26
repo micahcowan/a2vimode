@@ -96,6 +96,17 @@ Expect ProDOS support soon!
 
 A: Because it's *my* hackfest project, and having vi-mode in the prompt is more fun for me! Plus, I hope to eventually add support for vi's `f`, `t`, `,`, and `;` commands (which a surprising number of vi users appear not to know about, but are among my most-used commands!), and using those definitely warrants having a separate movement mode, in my opinion.
 
+## Building notes
+
+If you want to modify or build from these sources, you will need tools from the following projects:
+
+  * The ca65 and ld65 tools from [the cc65 project](https://github.com/cc65/cc65)
+  * Vince Weaver's [dos33fsprogs](https://github.com/deater/dos33fsprogs)
+
+NOTE: The **dos33fsprogs** project contains *many* different subprojects, most of which are *not needed* to build `fnord.dsk`. The only subdirectories you must build, are `utils/dos33fs-utils`, `utils/prodos-utils`, and `utils/asoft_basic-utils`.
+
+a2vimode's Makefile assumes all of these tools are accessible from the current `PATH` environment variable.
+
 ## Problems and Short-Comings
 
  * The ability to go and grab content off the screen is lost now.

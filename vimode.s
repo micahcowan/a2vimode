@@ -30,12 +30,14 @@ BELL = $FF3A
 RET_RDCHAR = $FD37
 RET_GETLN  = $FD77
 
+;
 
 STAT_BASE = $750 ; line 22
 STRC_BASE = $7D0 ; line 23 (last line)
 
 DEBUG=1
 
+.ifndef DEBUG
 kMaxLength = $FE
 .else
 ;kMaxLength = $30 ; 48
@@ -45,6 +47,7 @@ kMaxLength = $FE
 .org $6000
 
 Input:
+    cld
 InputRedirFn = * + 1
     ; The address of the following JMP will be _rewritten_
     ; to jump directly to keyboard inputs, when GETLN
@@ -547,7 +550,7 @@ InsertMode:
     jsr PrintState
 .endif
     ; INSERT MODE.
-    jsr RDKEY
+    jsr MyRDKEY
     ; We enter here via return from CheckForGetLine (when GETLN
     ; was found)
 
@@ -619,7 +622,7 @@ MaybeCtrlV:
     cmp #$96
     bne @nf ;-> try 'nother char
     ; do a direct read, and insert it, whatever it may be
-    jsr RDKEY
+    jsr MyRDKEY
     jmp TryInsertChar
 @nf:
 MaybeCR:
@@ -828,7 +831,7 @@ NormalMode:
 .ifdef DEBUG
     jsr PrintState
 .endif
-    jsr RDKEY
+    jsr MyRDKEY
     ; in our normal mode, lowercase should be converted to upper.
     cmp #$E0    ; < 'a' ?
     bcc @nocvt  ; -> no
@@ -1142,7 +1145,7 @@ PrintForwardMoveFromSaveA:
     tax
     rts
 ReadWait:
-    jsr RDKEY
+    jsr MyRDKEY
     sec
     and #$7F ; char ranges from $80 - $FF, make it range from $00 - $FE
     clc
@@ -1158,7 +1161,27 @@ ReadWait:
     bne @lp
     pla
     rts
-;
+.if 1
+MyRDKEY = RDKEY
+.else
+MyRDKEY:
+    lda $38
+    pha
+    lda $39
+    pha
+        lda #<KEYIN
+        sta $38
+        lda #>KEYIN
+        sta $39
+        jsr RDKEY
+        sta SaveA
+    pla
+    sta $39
+    pla
+    sta $38
+    lda SaveA
+    rts
+.endif
 SaveA:
     .byte 0
 SaveX:

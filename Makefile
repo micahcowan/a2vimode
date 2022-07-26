@@ -1,6 +1,11 @@
-all: VIMODE.DSK
+all: VIMODE.dsk VIMODE-PRODOS.dsk
 
-VIMODE.DSK: VIMODE BSTRAP HELLO Makefile
+VIMODE-PRODOS.dsk: VIMODE Makefile
+	rm -f $@
+	cp SYSTEM.dsk $@
+	prodos -t BIN -a 0x6000 $@ SAVE VIMODE
+
+VIMODE.dsk: VIMODE BSTRAP HELLO Makefile
 	rm -f $@
 	cp empty.dsk $@
 	dos33 -y $@ save A HELLO
@@ -21,4 +26,4 @@ BSTRAP: bootstrap.o Makefile
 
 .PHONY: clean
 clean:
-	rm -f VIMODE.DSK VIMODE BSTRAP HELLO *.o *.list
+	rm -f VIMODE.dsk VIMODE-PRODOS.dsk VIMODE BSTRAP HELLO *.o *.list
