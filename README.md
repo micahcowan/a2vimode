@@ -25,7 +25,7 @@ The primary design goals, which are in fact to some degree in conflict:
 
 Because of the limitations of goal #2, there is one major set of differences between our controls, and those in vi: there are no lowercase controls. You are welcome to type your navigation commands out in lowercase, but they will behave exactly the same as typing capitals. For related reasons, many capital-letter commands you may be accustomed to from **vi**, have the behavior of their *lowercase* equivalent.
 
-An even bigger difference: instead of using the `ESC` key to enter "normal" mode, you should instead use the `TAB` key. Actually, the `ESC` key *will work* if you use it, at least in 40-column mode&mdash;but in 80-column mode it *won't*, because the 80-col firmware intercepts it, and it will likely screw up your prompt's display.
+An even bigger difference: instead of using the `ESC` key to enter "normal" mode, you should instead use the `TAB` key. Actually, the `ESC` key *will work* if you use it, at least in 40-column mode&mdash;but in 80-column mode on an unehnahced Apple \]\[e it *won't*, because the 80-col firmware intercepts it, and it will likely screw up your prompt's display. The *enhanced* Apple //e and the Apple //c do not suffer this issue.
 
 Be sure to read the list of commands from the [Normal Mode](#normal-mode) section.
 
