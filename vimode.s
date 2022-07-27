@@ -35,7 +35,8 @@ RET_GETLN  = $FD77
 STAT_BASE = $750 ; line 22
 STRC_BASE = $7D0 ; line 23 (last line)
 
-NormalModeChar = $AD
+PromptNormalChar = $AD ; '-'
+PromptCaptureChar= $A3 ; '#'
 
 DEBUG=1
 
@@ -487,6 +488,8 @@ ViModeGetline:
     jsr COUT
     ; fall through to general initialization, and then on to insert-mode
 ViModeEntry:
+    lda PROMPT
+    sta SavePrompt
 InitViMode:
     ; Install direct keyin fn (no GETLN check)
     lda #<RealInput
@@ -641,7 +644,6 @@ MaybeCtrlV:
 MaybeCtrlZ:
     cmp #$9A
     bne @nf ;-> try 'nother char
-    lda #$00 ; indicate insert mode
     jsr ShowVersion
     jmp InsertMode
 @nf:
@@ -824,7 +826,7 @@ Backspace:
     jsr BackspaceFromEOL
     rts
 EnterNormalMode:
-    lda #NormalModeChar ; '-'
+    lda #PromptNormalChar ; '-'
     jsr ChangePrompt
     lda AppendModeFLag
     bpl @appFlagUnset
@@ -838,7 +840,9 @@ EnterNormalMode:
 ResetNormalMode:
     ;; Process a captured move (delete or change)
     lda CaptureFlag
-    beq @notCapturing
+    bne @capturing
+    jmp @notCapturing
+@capturing:
     ; If we're here, we need to handle a movement that's just been
     ; captured.
     ; XXX for now, we assume we're deleting, since that's the only
@@ -904,9 +908,20 @@ ResetNormalMode:
     sbc CapturePos
     tay
     jsr EmitYCntBsp
-    ;
-    lda #$0 ; turn off movement-capture; we did it.
+    ; Were we a c-movement capture?
+    lda CaptureFlag
+    cmp #$C3 ; 'C'
+    bne @notC
+    jmp EnterInsertMode
+@notC:
+    ; turn off movement-capture; we did it.
+    lda #$0
     sta CaptureFlag
+    ; restore normal-mode prompt
+    lda #PromptNormalChar
+    jsr ChangePrompt
+
+    ; fall through
 @notCapturing:
 NormalMode:
 .ifdef DEBUG
@@ -944,11 +959,16 @@ NrmMaybeA:
 @atEnd:
     jmp EnterInsertMode
 @nf:
-NrmMaybeD:
+NrmMaybeDorC:
     cmp #$C4 ; 'D'
+    beq @doCapture
+    cmp #$C3 ; 'C'
     bne @nf
+@doCapture:
     sta CaptureFlag ; indicate that we're capturing for a delete
     stx CapturePos
+    lda #PromptCaptureChar
+    jsr ChangePrompt
     jmp NormalMode ; do NOT reset, because we're capturing now.
 @nf:
 NrmMaybeX:
@@ -984,7 +1004,6 @@ NrmMaybeCtrlX:
 NrmMaybeCtrlZ:
     cmp #$9A
     bne @nf ;-> try 'nother char
-    lda #$FF ; indicate normal mode
     jsr ShowVersion
     jmp ResetNormalMode
 @nf:
@@ -1104,22 +1123,25 @@ RestorePrompt:
     lda PROMPT
     ; fall through
 ChangePrompt:
-    sta @CPSaveA
     cmp #$80 ; New prompt NUL?
-    beq @bail
-    lda PROMPT
-    cmp #$80 ; Official prompt NUL?
-    beq @bail
+    beq CPbail
+    pha
+        lda PROMPT
+        cmp #$80 ; Official prompt NUL?
+        beq CPbail
+    pla
 
+    sta SavePrompt
     jsr BackspaceToStart
     ; one more BS gets us onto the prompt.
     lda #$88
     jsr COUT
-@CPSaveA = * + 1
+SavePrompt = * + 1
     lda #$DC
     jsr COUT
     jmp PrintStartToX
-@bail:
+CPbail:
+    pla
     rts
 TryGoLeftOne:
     ; Try to go left.
@@ -1380,9 +1402,6 @@ MyRDKEY:
     rts
 .endif
 ShowVersion:
-    ; A-reg tells us if we're coming from Insert (zero) or Normal mode
-    ;  (nonzero)
-    sta @modeCheck
     stx @mySaveX
     ;; Erase the visible line
     jsr BackspaceToStart
@@ -1406,11 +1425,7 @@ ShowVersion:
     lda PROMPT
     cmp #$80
     beq @skipPrompt
-@modeCheck = * + 1
-    ldy #$00 ; this byte is overwritten at the start of ShowVersion
-    beq @skipColon
-    lda #NormalModeChar
-@skipColon:
+    lda SavePrompt
     jsr COUT
 @skipPrompt:
     ;; Redraw the line
