@@ -1,4 +1,4 @@
-all: VIMODE.dsk VIMODE-PRODOS.dsk
+all: VIMODE-DOS.dsk VIMODE-PRODOS.dsk
 
 VIMODE-PRODOS.dsk: VIMODE STARTUP SYSTEM.dsk Makefile
 	rm -f $@
@@ -8,7 +8,7 @@ VIMODE-PRODOS.dsk: VIMODE STARTUP SYSTEM.dsk Makefile
 	# We have it pre-saved to SYSTEM.DSK instead.
 	prodos -t BIN -a 0x6000 $@ SAVE VIMODE
 
-VIMODE.dsk: VIMODE BSTRAP HELLO Makefile
+VIMODE-DOS.dsk: VIMODE BSTRAP HELLO Makefile
 	rm -f $@
 	cp empty.dsk $@
 	dos33 -y $@ save A HELLO
@@ -46,4 +46,4 @@ vimode.o: version.inc
 
 .PHONY: clean
 clean:
-	rm -f VIMODE.dsk VIMODE-PRODOS.dsk VIMODE BSTRAP HELLO *.o *.list
+	rm -f VIMODE-DOS.dsk VIMODE-PRODOS.dsk VIMODE BSTRAP HELLO *.o *.list
