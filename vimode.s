@@ -35,6 +35,8 @@ RET_GETLN  = $FD77
 STAT_BASE = $750 ; line 22
 STRC_BASE = $7D0 ; line 23 (last line)
 
+NormalModeChar = $AD
+
 DEBUG=1
 
 .ifndef DEBUG
@@ -632,6 +634,7 @@ MaybeCtrlV:
 MaybeCtrlZ:
     cmp #$9A
     bne @nf ;-> try 'nother char
+    lda #$00 ; indicate insert mode
     jsr ShowVersion
     jmp InsertMode
 @nf:
@@ -831,7 +834,7 @@ Backspace:
     jsr BackspaceFromEOL
     rts
 EnterNormalMode:
-    lda #$AD ; '-'
+    lda #NormalModeChar ; '-'
     jsr ChangePrompt
     ; fall through to ResetNormalMode
 ResetNormalMode:
@@ -905,6 +908,13 @@ NrmMaybeCtrlX:
     ; XXX - if EnterInsertMode does cleanup, we should do that
     ;  here as well, as we're leaving NormalMode
     jmp DoAbortLine
+@nf:
+NrmMaybeCtrlZ:
+    cmp #$9A
+    bne @nf ;-> try 'nother char
+    lda #$FF ; indicate normal mode
+    jsr ShowVersion
+    jmp ResetNormalMode
 @nf:
 NrmMaybeCR:
     cmp #$8D ; CR
@@ -1262,6 +1272,9 @@ MyRDKEY:
     rts
 .endif
 ShowVersion:
+    ; A-reg tells us if we're coming from Insert (zero) or Normal mode
+    ;  (nonzero)
+    sta @modeCheck
     stx @mySaveX
     ;; Erase the visible line
     jsr BackspaceToStart
@@ -1286,6 +1299,11 @@ ShowVersion:
     lda PROMPT
     cmp #$80
     beq @skipPrompt
+@modeCheck = * + 1
+    ldy #$00 ; this byte is overwritten at the start of ShowVersion
+    beq @skipColon
+    lda #NormalModeChar
+@skipColon:
     jsr COUT
 @skipPrompt:
     ;; Redraw the line
