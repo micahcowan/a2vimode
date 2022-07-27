@@ -89,6 +89,7 @@ The following common **vi** commands are not available in **a2vimode**, but have
 | **D** | **D$** | delete rest of the line
 | **C** | **C$** | re-type rest of the line |
 | **S** | **CC** | re-type the line from scratch |
+| **A** | **$A** | insert at the end of the line |
 
 ## Disabling Vi-Mode
 
