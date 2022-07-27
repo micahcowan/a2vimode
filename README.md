@@ -3,6 +3,9 @@
 [**Download the disk image here**](https://github.com/micahcowan/a2vimode/releases/) (be sure to expand the "assets" for a release)<br />
 [**Try it out in an online emulator here**](http://micah.cowan.name/apple2js/apple2jse.html#vi-mode) (but *READ THESE INSTRUCTIONS* on how to use!)
 
+[**Click the video below to view**<br />
+![AppleSoft Autorun ROM Maker shwocase video](https://img.youtube.com/vi/MnlNq-6Dci4/0.jpg)](https://www.youtube.com/watch?v=MnlNq-6Dci4)
+
 ## Introducing a2vimode
 Hello, and welcome to **a2vimode**, which installs **vi**-inspired prompt-line editing facilities! Created for [HackFest 2022](https://www.kansasfest.org/hackfest/), a part of KansasFest 2022 (an annual Apple \]\[ conference)
 
@@ -76,7 +79,7 @@ In Normal Mode, the following keys have meaning:
 | **X** | **x** | delete *forward* a character |
 | **S** | **s** | delete forward a character, then enter insert mode. ("substitute") |
 | **0-9** | **0-9** | specify a repeat count&mdash;e.g., `3W` moves forward three words. |
-| **D***move* | **d***move* | delete to next movement&mdash;`D2B` deletes backwards two words;<br />`D12L` deletes the next 12 characters |
+| **D***move* | **d***move* | delete to next movement&mdash;`D2B` deletes backwards two words;<br />`D12L` deletes the next 12 characters (`12X` also works) |
 | **C***move* | **c***move* | ("change"-movement). Delete to next movement, then enter insert mode.<br />`CE`: type a replacement for the next word |
 | **DD** | **dd** | delete the line, remain in normal mode |
 | **CC** | **cc** | delete the line and enter insert mode to begin again |
