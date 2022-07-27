@@ -6,3 +6,4 @@ VIMODE.dsk
 VIMODE-PRODOS.dsk
 *.list
 *.o
+version.inc

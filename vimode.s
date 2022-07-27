@@ -629,6 +629,12 @@ MaybeCtrlV:
     jsr MyRDKEY
     jmp TryInsertChar
 @nf:
+MaybeCtrlZ:
+    cmp #$9A
+    bne @nf ;-> try 'nother char
+    jsr ShowVersion
+    jmp InsertMode
+@nf:
 MaybeCR:
     cmp #$8D
     beq DoCR
@@ -662,6 +668,7 @@ BackspaceFromEOL:
     tay
 EmitYCntBsp:
     lda #$88
+EmitYCntAReg:
     cpy #$0
     beq @doneBk
 @lpBk:
@@ -670,6 +677,10 @@ EmitYCntBsp:
     bne @lpBk
 @doneBk:
     rts
+EmitYCntSpaces:
+    lda #$A0
+    bne EmitYCntAReg
+    ; ^ eventual RTS.
 TryInsertChar:
     ; Check to see if there's room for the char
     sta SaveA
@@ -1250,6 +1261,47 @@ MyRDKEY:
     lda SaveA
     rts
 .endif
+ShowVersion:
+    stx @mySaveX
+    ;; Erase the visible line
+    jsr BackspaceToStart
+    lda LineLength
+    tay
+    jsr EmitYCntSpaces
+    ;; Return cursor to start of prompt
+    ldx LineLength
+    jsr BackspaceToStart
+    ;; Print the version string, including final backslash and CR
+    ldy #0
+@versLp:
+    lda ViModeVersion,y
+    beq @versDone
+    jsr COUT
+    iny
+    bne @versLp
+@versDone:
+    ;; Restart the prompt (which prompt depending what mode
+    ;;   we were, as well as what "real" prompt is ($80 gets no prompt))
+    ; XXX for now we don't check for normal mode prompt
+    lda PROMPT
+    cmp #$80
+    beq @skipPrompt
+    jsr COUT
+@skipPrompt:
+    ;; Redraw the line
+    ldx #0
+    jsr PrintRestOfLine
+    ;; Replace cursor where it belongs
+    lda LineLength
+    sec
+    sbc @mySaveX
+    tay
+    jsr EmitYCntBsp
+    ldx @mySaveX
+    rts
+@mySaveX:
+    .byte 0
+;
 SaveA:
     .byte 0
 SaveX:
@@ -1270,3 +1322,7 @@ TmpWord:
     .word 0
 appendModeFlag:
     .byte 0
+
+; The generated version string
+.include "version.inc"
+
