@@ -551,7 +551,7 @@ PrefillFlag = * + 1
     jmp InsertMode
 DbgPrefill:
     ; used to pre-fill the buffer when we first enter
-    scrcode "PRINT ",'"',"HELLO, WORLD!",'"'
+    scrcode "PRINT ",'"',"ALPHA BETA GAMMA DELTA EPSILON IOTA",'"'
 .if 0
 .repeat 7
 .repeat 26, I
@@ -834,20 +834,33 @@ EnterNormalMode:
     sta AppendModeFLag
     jsr TryGoLeftOne
 @appFlagUnset:
+    ; We just entered; make sure we're not capturing
     lda #$0
     sta CaptureFlag
+    ; ...or repeating
+    sta RepeatCounter
     ; fall through to ResetNormalMode
 ResetNormalMode:
+    ;; Check for an active repeat count
+    lda RepeatCounter
+    beq @checkCapture
+    ; Yes, we have a repeat count. Repeat it!
+
+    ; TODO: at some future point we may wish to have the individual
+    ;  commands handle the repeat count. Certainly going to be more
+    ;  efficient.
+    dec RepeatCounter
+    lda NrmLastKey
+    jmp NrmCmdExec
+
     ;; Process a captured move (delete or change)
+@checkCapture:
     lda CaptureFlag
     bne @capturing
     jmp @notCapturing
 @capturing:
     ; If we're here, we need to handle a movement that's just been
     ; captured.
-    ; XXX for now, we assume we're deleting, since that's the only
-    ; capture we have at the moment. Delete and change are very similar
-    ; anyway
     stx PostCapturePos ; save post-move X-reg away
     txa                ;  and move it to Y-reg
     tay
@@ -928,6 +941,7 @@ NormalMode:
     jsr PrintState
 .endif
     jsr MyRDKEY
+    sta NrmLastKey
     ; in our normal mode, lowercase should be converted to upper.
     cmp #$E0    ; < 'a' ?
     bcc @nocvt  ; -> no
@@ -936,6 +950,7 @@ NormalMode:
     sec
     sbc #$20
 @nocvt:
+NrmCmdExec:
     bit CaptureFlag ; Are we capturing a movement instead of moving?
     bmi NrmSafeCommands ; -> yes, skip modifying commands
 ; START of line-modifying/not-just-movement commands
@@ -1004,6 +1019,8 @@ NrmMaybeCtrlX:
 NrmMaybeCtrlZ:
     cmp #$9A
     bne @nf ;-> try 'nother char
+    lda #$0
+    sta RepeatCounter ; Don't repeat version shows
     jsr ShowVersion
     jmp ResetNormalMode
 @nf:
@@ -1022,6 +1039,57 @@ NrmMaybeCtrlBackslash:
     jmp ResetNormalMode
 @nf:
 .endif
+NrmMaybeZero:
+    cmp #$B0 ; 0
+    bne @nf
+    lda RepeatCounter
+    bne NrmHandleDigit ; if we're actively counting repeats, go there
+    ; Otherwise we're going to the beginning of the line.
+    bit CaptureFlag
+    bmi @skipPr
+    jsr BackspaceToStart
+@skipPr:
+    ldx #0
+    jmp ResetNormalMode
+@nf:
+NrmMaybeDigit:
+    ; Check to see if a repeat counter is being typed.
+    ; Note that we check for 0 here, but 0 also gets checked just above
+    ; us. That's okay - if it detects an active counter, it redirects
+    ; to us.
+    cmp #$B0
+    bcc NrmMaybeDigitOut ; < '0', don't handle
+    cmp #$BA
+    bcs NrmMaybeDigitOut ; > '9' (>= ':'), don't handle
+NrmHandleDigit: ; the "other" '0'-handler redirects here
+    and #$0F ; we just want the digit value now
+    pha
+        lda RepeatCounter
+        beq @skipMul
+        ; Multiply the existing count by ten, since we're tacking
+        ;  on a new digit
+        pha
+            ; A * 8 ...
+            asl
+            asl
+            asl
+            sta RepeatCounter
+        pla
+        ; ... + A * 2 ...
+        asl
+        clc
+        adc RepeatCounter
+        sta RepeatCounter
+@skipMul:
+    ; ... + new digit.
+    pla
+    clc
+    adc RepeatCounter
+    sta RepeatCounter
+    ;
+    jmp NormalMode ; NOT reset - we collect digits until a real command
+                   ;  is typed.
+NrmMaybeDigitOut:
 NrmMaybeEol:
     cmp #$A4 ; $
     bne @nf
@@ -1030,16 +1098,6 @@ NrmMaybeEol:
     jsr PrintRestOfLine
 @skipPr:
     ldx LineLength
-    jmp ResetNormalMode
-@nf:
-NrmMaybeZero:
-    cmp #$B0 ; 0
-    bne @nf
-    bit CaptureFlag
-    bmi @skipPr
-    jsr BackspaceToStart
-@skipPr:
-    ldx #0
     jmp ResetNormalMode
 @nf:
 NrmMaybeCarat:
@@ -1109,6 +1167,10 @@ NrmMaybeL:
     jmp ResetNormalMode
 @nf:
 NormalUnrecognized:
+    ; If we have an active repeat going, save us some trouble
+    ; and kill the loop.
+    lda #$0
+    sta RepeatCounter
     ;jsr BELL
     jmp ResetNormalMode
 CaptureFlag:
@@ -1443,6 +1505,10 @@ ShowVersion:
 @mySaveX:
     .byte 0
 ;
+RepeatCounter:
+    .byte 0
+NrmLastKey:
+    .byte 0
 SaveA:
     .byte 0
 SaveX:
