@@ -38,7 +38,7 @@ STRC_BASE = $7D0 ; line 23 (last line)
 PromptNormalChar = $AD ; '-'
 PromptCaptureChar= $A3 ; '#'
 
-DEBUG=1
+;DEBUG=1
 
 .ifndef DEBUG
 kMaxLength = $FE
@@ -559,8 +559,8 @@ DbgPrefill:
 .endrepeat
 .endrepeat
 .endif ; (repeat)
-.endif ; DEBUG
     .byte 0
+.endif ; DEBUG
 InsertMode:
 .ifdef DEBUG
     jsr PrintState
