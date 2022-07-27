@@ -74,10 +74,14 @@ In Normal Mode, the following keys have meaning:
 | **A** | **a** | return to insert mode, inserting *after* the current character |
 | **[BS]** | **[BS]** | (left-arrow/backspace, or `DEL`) delete back a character |
 | **X** | **x** | delete *forward* a character |
+| **^Z** |      | (Control-Z) displays **a2vimode**'s version string. Also works when in insert mode. |
 
 There is currently no support for the "delete"(-movement), "change"(-movement), "substitute", or "replace" commands found in **vi**; these are planned as future features. For now, you'll have to make do with just left-arrow/`DEL` and `X` to handle deletions.
 
 ### 80-Column
+
+**NOTE: at the moment, 80-column mode does not work under ProDOS. It isn't fantastic under DOS either, but should work provided you follow the instructions below closely.**
+
 To use vi-mode in 80-column mode, first start 80-column mode with `PR#3`, and then `RUN HELLO` to reconnect **vi-mode**. Do not run the `HELLO` program multiple times with 80-column firmware active - if you want to reboot **vi-mode**, do another `PR#3` followed by `RUN HELLO`.
 
 And don't touch the `ESC` key! Use `TAB` to enter normal mode.
