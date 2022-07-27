@@ -954,8 +954,10 @@ NormalMode:
 @nocvt:
 NrmCmdExec:
     bit CaptureFlag ; Are we capturing a movement instead of moving?
-    bmi NrmSafeCommands ; -> yes, skip modifying commands
+    bpl NrmUnsafeCommands   ; -> no, check all commands
+    jmp NrmSafeCommands     ; -> yes, skip modifying commands
 ; START of line-modifying/not-just-movement commands
+NrmUnsafeCommands:
 NrmMaybeI:
     cmp #$C9 ; 'I'
     bne NrmMaybeIOut
@@ -988,9 +990,12 @@ NrmMaybeDorC:
     jsr ChangePrompt
     jmp NormalMode ; do NOT reset, because we're capturing now.
 @nf:
-NrmMaybeX:
+NrmMaybeSorX:
+    cmp #$D3 ; 'S'
+    beq @doIt
     cmp #$D8 ; 'X'
     bne @nf
+@doIt:
     ; equivalent to forward-one-then-BS, unless at end of line
     cpx LineLength
     beq @fail
@@ -1000,7 +1005,13 @@ NrmMaybeX:
     jsr COUT
     jsr Backspace
 @fail:
-    jmp ResetNormalMode
+    lda NrmLastKey
+    cmp #$D3 ; 'S'
+    beq @doSubst
+    jmp ResetNormalMode ; X
+@doSubst:
+    ; Yes, we do this even if deleting forward failed (= we're EOL)
+    jmp EnterInsertMode
 @nf:
 NrmMaybeDELorBS:
     cmp #$FF ; DEL
