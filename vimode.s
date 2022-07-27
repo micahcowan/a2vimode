@@ -1128,7 +1128,7 @@ ChangePrompt:
     pha
         lda PROMPT
         cmp #$80 ; Official prompt NUL?
-        beq CPbail
+        beq CPbail2
     pla
 
     sta SavePrompt
@@ -1140,8 +1140,9 @@ SavePrompt = * + 1
     lda #$DC
     jsr COUT
     jmp PrintStartToX
-CPbail:
+CPbail2:
     pla
+CPbail:
     rts
 TryGoLeftOne:
     ; Try to go left.
