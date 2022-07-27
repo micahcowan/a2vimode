@@ -832,9 +832,11 @@ EnterNormalMode:
     sta AppendModeFLag
     jsr TryGoLeftOne
 @appFlagUnset:
+    lda #$0
+    sta CaptureFlag
     ; fall through to ResetNormalMode
 ResetNormalMode:
-    ; TODO: reset a command or movement-in-progress
+    ;; Process a captured move (delete or change)
     lda CaptureFlag
     beq @notCapturing
     ; If we're here, we need to handle a movement that's just been
@@ -859,6 +861,8 @@ ResetNormalMode:
     ; move-back-and-delete-forward)
     ldx PostCapturePos
     ldy CapturePos
+    stx CapturePos
+    sty PostCapturePos
     jmp @skipCalc
 @calc:
     lda PostCapturePos
@@ -879,6 +883,13 @@ ResetNormalMode:
 @deleteDone:
     lda #$8D ; we don't really need to terminate with a CR here,
     sta IN,y ; but what the heck.
+    ; subtract from LineLength
+    lda LineLength
+    sec
+    sbc PosDiff
+    sta LineLength
+    ;; Now update the screen - print the rest of the line, and
+    ;; spaces over the previous line-tail
     ldx CapturePos
     jsr PrintRestOfLine
     ldy PosDiff
@@ -893,11 +904,6 @@ ResetNormalMode:
     sbc CapturePos
     tay
     jsr EmitYCntBsp
-    ; subtract from LineLength
-    lda LineLength
-    sec
-    sbc PosDiff
-    sta LineLength
     ;
     lda #$0 ; turn off movement-capture; we did it.
     sta CaptureFlag
@@ -1036,7 +1042,7 @@ NrmMaybeW:
 NrmWordFwd:
     stx SaveA ; nevermind the name...
     jsr MoveForwardWord
-    bcc CaptureFlag
+    bit CaptureFlag
     bmi @skipPr
     jsr PrintForwardMoveFromSaveA
 @skipPr:
