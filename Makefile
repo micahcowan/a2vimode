@@ -46,4 +46,4 @@ vimode.o: version.inc
 
 .PHONY: clean
 clean:
-	rm -f VIMODE-DOS.dsk VIMODE-PRODOS.dsk VIMODE BSTRAP HELLO *.o *.list
+	rm -f VIMODE-DOS.dsk VIMODE-PRODOS.dsk VIMODE BSTRAP HELLO version.inc *.o *.list
