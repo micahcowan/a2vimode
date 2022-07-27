@@ -500,7 +500,7 @@ InitViMode:
     ; Fill the inbuf with CRs
     lda #$8D
     ldx #0
-    stx appendModeFlag ; reset append flag
+    stx AppendModeFLag ; reset append flag
 @lp:
     sta IN,x
     inx
@@ -548,7 +548,7 @@ PrefillFlag = * + 1
     jmp InsertMode
 DbgPrefill:
     ; used to pre-fill the buffer when we first enter
-    scrcode "HELLO, WORLD! "
+    scrcode "PRINT ",'"',"HELLO, WORLD!",'"'
 .if 0
 .repeat 7
 .repeat 26, I
@@ -826,15 +826,82 @@ Backspace:
 EnterNormalMode:
     lda #NormalModeChar ; '-'
     jsr ChangePrompt
+    lda AppendModeFLag
+    bpl @appFlagUnset
+    lda #$0
+    sta AppendModeFLag
+    jsr TryGoLeftOne
+@appFlagUnset:
     ; fall through to ResetNormalMode
 ResetNormalMode:
     ; TODO: reset a command or movement-in-progress
-    lda appendModeFlag
-    bpl @appFlagUnset
-    lda #$0
-    sta appendModeFlag
-    jsr TryGoLeftOne
-@appFlagUnset:
+    lda CaptureFlag
+    beq @notCapturing
+    ; If we're here, we need to handle a movement that's just been
+    ; captured.
+    ; XXX for now, we assume we're deleting, since that's the only
+    ; capture we have at the moment. Delete and change are very similar
+    ; anyway
+    stx PostCapturePos ; save post-move X-reg away
+    txa                ;  and move it to Y-reg
+    tay
+    ldx CapturePos ; Restore pre-mov location to X-reg
+    cpx PostCapturePos
+    bcc @calc ; -> CapturePos < PostCapturePos, no initial backspacing needed
+    ; Deleting backwards: first backspace to where the mvmt landed us
+    lda CapturePos
+    ; sec -- is guaranteed
+    sbc PostCapturePos
+    sta PosDiff ; save the positions' difference
+    tay
+    jsr EmitYCntBsp
+    ; now swap CapturePos and PostCapturePos (make it equivalent to a
+    ; move-back-and-delete-forward)
+    ldx PostCapturePos
+    ldy CapturePos
+    jmp @skipCalc
+@calc:
+    lda PostCapturePos
+    sec
+    sbc CapturePos
+    sta PosDiff
+@skipCalc:
+    ;; Delete forward by copying char-at-Y to char-at-X until
+    ;;  we've reached LineLength
+@copyBackLoop:
+    cpy LineLength
+    beq @deleteDone
+    lda IN,y
+    sta IN,x
+    inx
+    iny
+    bne @copyBackLoop
+@deleteDone:
+    lda #$8D ; we don't really need to terminate with a CR here,
+    sta IN,y ; but what the heck.
+    ldx CapturePos
+    jsr PrintRestOfLine
+    ldy PosDiff
+    jsr EmitYCntSpaces
+    ;; Now back up again to where the cursor should be
+    ; first back up to end of the line
+    ldy PosDiff
+    jsr EmitYCntBsp
+    ; now back up the rest of the way to the cursor
+    lda LineLength
+    sec
+    sbc CapturePos
+    tay
+    jsr EmitYCntBsp
+    ; subtract from LineLength
+    lda LineLength
+    sec
+    sbc PosDiff
+    sta LineLength
+    ;
+    lda #$0 ; turn off movement-capture; we did it.
+    sta CaptureFlag
+@notCapturing:
 NormalMode:
 .ifdef DEBUG
     jsr PrintState
@@ -848,6 +915,8 @@ NormalMode:
     sec
     sbc #$20
 @nocvt:
+    bit CaptureFlag ; Are we capturing a movement instead of moving?
+    bmi NrmSafeCommands ; -> yes, skip modifying commands
 ; START of line-modifying/not-just-movement commands
 NrmMaybeI:
     cmp #$C9 ; 'I'
@@ -864,10 +933,17 @@ NrmMaybeA:
     cpx LineLength
     beq @atEnd
     lda #$FF
-    sta appendModeFlag ; so exiting insert mode drops cursor back one char
+    sta AppendModeFLag ; so exiting insert mode drops cursor back one char
     jsr TryGoRightOne
 @atEnd:
     jmp EnterInsertMode
+@nf:
+NrmMaybeD:
+    cmp #$C4 ; 'D'
+    bne @nf
+    sta CaptureFlag ; indicate that we're capturing for a delete
+    stx CapturePos
+    jmp NormalMode ; do NOT reset, because we're capturing now.
 @nf:
 NrmMaybeX:
     cmp #$D8 ; 'X'
@@ -924,21 +1000,30 @@ NrmMaybeCtrlBackslash:
 NrmMaybeEol:
     cmp #$A4 ; $
     bne @nf
+    bit CaptureFlag
+    bmi @skipPr
     jsr PrintRestOfLine
+@skipPr:
     ldx LineLength
     jmp ResetNormalMode
 @nf:
 NrmMaybeZero:
     cmp #$B0 ; 0
     bne @nf
+    bit CaptureFlag
+    bmi @skipPr
     jsr BackspaceToStart
+@skipPr:
     ldx #0
     jmp ResetNormalMode
 @nf:
 NrmMaybeCarat:
     cmp #$DE ; '^'
     bne @nf
+    bit CaptureFlag
+    bmi @skipPr
     jsr BackspaceToStart
+@skipPr:
     ldx #0
     lda IN,x
     jsr GetIsWordChar
@@ -951,7 +1036,10 @@ NrmMaybeW:
 NrmWordFwd:
     stx SaveA ; nevermind the name...
     jsr MoveForwardWord
+    bcc CaptureFlag
+    bmi @skipPr
     jsr PrintForwardMoveFromSaveA
+@skipPr:
     jmp ResetNormalMode
 NrmMaybeWOut:
 ;
@@ -960,12 +1048,16 @@ NrmMaybeB:
     bne @nf
     stx SaveA ; nevermind the name...
     jsr MoveBackWord
+    bit CaptureFlag
+    bmi @skipPr
+    ; update the cursor on the line if not capturing the movement
     stx SaveX
     lda SaveA
     sec
     sbc SaveX
     tay
     jsr EmitYCntBsp
+@skipPr:
     jmp ResetNormalMode
 @nf:
 NrmMaybeE:
@@ -973,7 +1065,10 @@ NrmMaybeE:
     bne @nf
     stx SaveA ; nevermind the name...
     jsr MoveForwardWordEnd
+    bit CaptureFlag
+    bmi @skipPr
     jsr PrintForwardMoveFromSaveA
+@skipPr:
     jmp ResetNormalMode
 @nf:
 NrmMaybeH:
@@ -991,6 +1086,14 @@ NrmMaybeL:
 NormalUnrecognized:
     ;jsr BELL
     jmp ResetNormalMode
+CaptureFlag:
+    .byte $00
+CapturePos:
+    .byte $00
+PostCapturePos:
+    .byte $00
+PosDiff:
+    .byte $00 ; the positive positional difference in a movement
 RestorePrompt:
     lda PROMPT
     ; fall through
@@ -1020,6 +1123,11 @@ TryGoLeftOne:
 @skipRts:
     ; go left!
     dex
+
+    bit CaptureFlag
+    bpl @update
+    rts
+@update:
     lda #$88
     jmp COUT ; emit BS
 TryGoRightOne:
@@ -1028,9 +1136,12 @@ TryGoRightOne:
     beq @rts
     cpx #kMaxLength
     beq @rts
+    bit CaptureFlag
+    bmi @skipPr
     lda IN,x
     ; go right! print the current char to move.
     jsr ViPrintChar
+@skipPr:
     inx
 @rts:
     rts
@@ -1138,7 +1249,8 @@ MoveForwardWordEnd:
     lda IN,x
     jsr GetIsWordChar
     bcs @done ; ensure cursor is on the last word character
-              ; XXX: inappropriate during delete-movement
+    bit CaptureFlag ; Capture mode changes word end to _past_ the word
+    bmi @done
     dex
 @done:
     rts
@@ -1232,7 +1344,7 @@ MyRDKEY:
     bne @out
     ; We got played! ...Go ahead and play along, restart the prompt.
 
-    ; XXX what do we do here? We can't RTS and keep processing as
+    ; Augh! What do we do here? We can't RTS and keep processing as
     ; usual (we could have come from ReadDelay, for instance),
     ; but neither can we just jmp to ViModeGetline - we have an unknown
     ; number of call returns on the stack between us and it.
@@ -1285,7 +1397,6 @@ ShowVersion:
 @versDone:
     ;; Restart the prompt (which prompt depending what mode
     ;;   we were, as well as what "real" prompt is ($80 gets no prompt))
-    ; XXX for now we don't check for normal mode prompt
     lda PROMPT
     cmp #$80
     beq @skipPrompt
@@ -1328,7 +1439,7 @@ LineLength:
     .byte 0
 TmpWord:
     .word 0
-appendModeFlag:
+AppendModeFLag:
     .byte 0
 
 ; The generated version string
