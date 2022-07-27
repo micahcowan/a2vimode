@@ -548,9 +548,16 @@ PrefillFlag = * + 1
     jmp InsertMode
 DbgPrefill:
     ; used to pre-fill the buffer when we first enter
-    scrcode "HELLO, WORLD!"
+    scrcode "HELLO, WORLD! "
+.if 0
+.repeat 7
+.repeat 26, I
+    .byte $C1 + I
+.endrepeat
+.endrepeat
+.endif ; (repeat)
+.endif ; DEBUG
     .byte 0
-.endif
 InsertMode:
 .ifdef DEBUG
     jsr PrintState
@@ -728,6 +735,7 @@ PrintRestOfLine:
     cpx LineLength
     bne @lp
 @out:
+    jsr CLREOL
     ldx SaveX
     rts
 PrintYNextChars:
@@ -763,7 +771,7 @@ PrintStartToX:
 ViPrintChar:
     cmp #$A0
     bcc PrintControlChar
-    jmp CoutRowCheck
+    jmp COUT
 PrintControlChar:
     sta SaveA
     lda INVFLAG
@@ -773,27 +781,9 @@ PrintControlChar:
     lda SaveA
     and #$1F
     ora #$C0
-    jsr CoutRowCheck
+    jsr COUT
     pla
     sta INVFLAG
-    rts
-CoutRowCheck:
-    pha
-    lda CV
-    sta SavedCV
-    pla
-    pha
-    jsr COUT
-    lda CV
-    cmp SavedCV
-    beq @skipClr
-    tya
-    pha
-    jsr CLREOL
-    pla
-    tay
-@skipClr:
-    pla
     rts
 Backspace:
     cpx #0
