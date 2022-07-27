@@ -850,6 +850,8 @@ ResetNormalMode:
     ;  commands handle the repeat count. Certainly going to be more
     ;  efficient.
     dec RepeatCounter
+    beq @checkCapture ; we don't do the last one, because one was done
+                      ; before we could start counting down
     lda NrmLastKey
     jmp NrmCmdExec
 
@@ -1043,7 +1045,10 @@ NrmMaybeZero:
     cmp #$B0 ; 0
     bne @nf
     lda RepeatCounter
-    bne NrmHandleDigit ; if we're actively counting repeats, go there
+    beq @notCtr
+    lda #$0
+    beq NrmHandleDigit ; if we're actively counting repeats, go there
+@notCtr:
     ; Otherwise we're going to the beginning of the line.
     bit CaptureFlag
     bmi @skipPr
@@ -1068,15 +1073,14 @@ NrmHandleDigit: ; the "other" '0'-handler redirects here
         beq @skipMul
         ; Multiply the existing count by ten, since we're tacking
         ;  on a new digit
+        asl
         pha
             ; A * 8 ...
-            asl
             asl
             asl
             sta RepeatCounter
         pla
         ; ... + A * 2 ...
-        asl
         clc
         adc RepeatCounter
         sta RepeatCounter
