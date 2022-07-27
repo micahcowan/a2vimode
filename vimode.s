@@ -1052,6 +1052,18 @@ NrmMaybeCtrlBackslash:
     jmp ResetNormalMode
 @nf:
 .endif
+;; Check for "CC" and "DD"
+NrmMaybeLineKill:
+    bit CaptureFlag
+    bpl @nf ; -> Not capturing, skip
+    cmp CaptureFlag
+    bne @nf ; -> Not repeated capture character, skip
+    jsr BackspaceToStart ; Backspace to beginning
+    ldx #$0
+    stx CapturePos ; Overwrite "original position" to beginning
+    ldx LineLength ; And set our current position to the end.
+    jmp ResetNormalMode
+@nf:
 NrmMaybeZero:
     cmp #$B0 ; 0
     bne @nf
