@@ -74,13 +74,29 @@ In Normal Mode, the following keys have meaning:
 | **A** | **a** | return to insert mode, inserting *after* the current character |
 | **[BS]** | **[BS]** | (left-arrow/backspace, or `DEL`) delete back a character |
 | **X** | **x** | delete *forward* a character |
+| **S** | **s** | delete forward a character, then enter insert mode. ("substitute") |
+| **0-9** | **0-9** | specify a repeat count&mdash;e.g., `3W` moves forward three words. |
+| **D***move* | **d***move* | delete to next movement&mdash;`D2B` deletes backwards two words;<br />`D12L` deletes the next 12 characters |
+| **C***move* | **c***move* | ("change"-movement). Delete to next movement, then enter insert mode.<br />`CE`: type a replacement for the next word |
+| **DD** | **dd** | delete the line, remain in normal mode |
+| **CC** | **cc** | delete the line and enter insert mode to begin again |
 | **^Z** |      | (Control-Z) displays **a2vimode**'s version string. Also works when in insert mode. |
 
-There is currently no support for the "delete"(-movement), "change"(-movement), "substitute", or "replace" commands found in **vi**; these are planned as future features. For now, you'll have to make do with just left-arrow/`DEL` and `X` to handle deletions.
+The following common **vi** commands are not available in **a2vimode**, but have available equivalents:
 
-### 80-Column
+| vi | use instead | explanation |
+| --- | --- | --- |
+| **D** | **D$** | delete rest of the line
+| **C** | **C$** | re-type rest of the line |
+| **S** | **CC** | re-type the line from scratch |
 
-**NOTE: at the moment, 80-column mode does not work under ProDOS. It isn't fantastic under DOS either, but should work provided you follow the instructions below closely.**
+## Disabling Vi-Mode
+
+To disable **vi-mode**, run `IN#0`.
+
+## 80-Column
+
+**NOTE: at the moment, 80-column mode does not work under ProDOS. It isn't fantastic under DOS either, if you're using specifically the unenhanced Apple \]\[e, but should work provided you follow the instructions below closely. Enhanced Apple //e appears to work better.**
 
 To use vi-mode in 80-column mode, first start 80-column mode with `PR#3`, and then `RUN HELLO` to reconnect **vi-mode**. Do not run the `HELLO` program multiple times with 80-column firmware active - if you want to reboot **vi-mode**, do another `PR#3` followed by `RUN HELLO`.
 
@@ -90,7 +106,7 @@ And don't touch the `ESC` key! Use `TAB` to enter normal mode.
 
 **Q: "Micah, why on earth did you choose *vi* as the model? Why not use a single mode for moving *and* inserting?**
 
-A: Because it's *my* hackfest project, and having vi-mode in the prompt is more fun for me! Plus, I hope to eventually add support for vi's `f`, `t`, `,`, and `;` commands (which a surprising number of vi users appear not to know about, but are among my most-used commands!), and using those definitely warrants having a separate movement mode, in my opinion.
+A: Because it's *my* hackfest project, and having vi-mode in the prompt is more fun for me! 😉 Plus, I hope to eventually add support for vi's `f`, `t`, `,`, and `;` commands (which a surprising number of vi users appear not to know about, but are among my most-used commands!), and using those definitely warrants having a separate movement mode, in my opinion.
 
 ## Building notes
 
@@ -106,8 +122,8 @@ a2vimode's Makefile assumes all of these tools are accessible from the current `
 ## Problems and Short-Comings
 
  * The ability to go and grab content off the screen is lost now.
- * 80-column mode is somewhat fragile, and occasionally annoying. This is due chiefly to the fact that 80-col `RDKEY` automatically a number of things that the standard firmware doesn't, and I wish it wouldn't. I may resolve these issues by avoiding `RDKEY` in the future, but for now I'm stuck with it.
- * It really wants the **d** and **c** commands from **vi**... and **y** and **p** for copy/paste would be nice too. I plan to add these soon.
+ * ProDOS support is somewhat fragile, as it doesn't currently know how to protect itself properly from BASIC programs running under ProDOS. On DOS, it sets `HIMEM:` to protect itself.
+ * 80-column mode on an *unenhanced* Apple \]\[e is somewhat fragile, and occasionally annoying. This is due chiefly to the fact that 80-col `RDKEY` automatically a number of things that the standard firmware doesn't, and I wish it wouldn't. I may resolve these issues by avoiding `RDKEY` in the future, but for now I'm stuck with it.
  * Due to the way **a2vimode** detects and wrests away control from the firmware `GETLN` routine, there is a small-but-not-zero chance of mistaking some values on the stack for return addresses, that aren't, and consequently breaking some function up the call stack.
 
 ## How Does It Work?
