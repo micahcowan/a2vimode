@@ -10,9 +10,17 @@ BASE = $28
 INVFLAG = $32
 PROMPT = $33
 CSW = $36
+LINNUM = $50 ; line number stored here after LINGET parse
 CURLIN = $75
+LOWTR  = $9B ; FINDLIN puts the pointer to a line here when found
+
+CHRGET = $B1
+CHRGOT = $B7
+TXTPTR = $B8
 
 IN = $200
+FNDLIN = $D61A ; finds the location of a line from its number
+LINGET = $DA0C ; parses a line number from TXTPTR
 VTAB = $FC22
 VTABZ = $FC24
 SCROLL = $FC70
@@ -642,6 +650,33 @@ MaybeCtrlBackslash:
     jmp InsertMode
 @nf:
 .endif
+MaybeCtrlG:
+    cmp #$87 ; C-G
+    bne @nf
+    ; Are we in BASIC?
+    bit ViPromptIsBasic
+    bmi @bel
+    ; Unset low bits from start of line to first non-space, non-digit
+    jsr LineNumberToLow
+    ; Set up TXTPTR to input buffer
+    lda #<IN
+    sta TXTPTR
+    lda #>IN
+    sta TXTPTR+1
+    jsr CHRGOT
+    bcs @bel ; > bail, the first char in input buffer isn't a digit...
+    stx SaveX
+    jsr LINGET
+    jsr FNDLIN
+    ldx SaveX
+    bcc @bel ; bail, no such line number
+    brk
+@bel:
+    jsr BELL
+    ; Reset the hight bits of things again
+    jsr LineNumberToHigh
+    jmp InsertMode
+@nf:
 MaybeCtrlL:
     cmp #$8C ; C-L ?
     bne @nf
@@ -1581,6 +1616,34 @@ ShowVersion:
     rts
 @mySaveX:
     .byte 0
+LineNumberToLow:
+    ldy #0
+@lp:
+    lda IN,y
+    and #$7F
+    cmp #$20
+    beq @st
+    cmp #$30
+    bcc @rt ; A < '0' and != SPC? done
+    cmp #$3A
+    bcs @rt ; A > '9' (>= ':') and != SPC? done
+@st:
+    sta IN,y
+    iny
+    bne @lp
+@rt:
+    rts
+LineNumberToHigh:
+    ldy #0
+@lp:
+    lda IN,y
+    bmi @rt
+    ora $80
+    sta IN,y
+    iny
+    bne @lp
+@rt:
+    rts
 ;
 RepeatCounter:
     .byte 0
