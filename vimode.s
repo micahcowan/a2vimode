@@ -1123,7 +1123,7 @@ NrmMaybeCtrlN:
     ; Check high byte of "next line" link
     lda (LOWTR),y
     beq @bad ; -> no next line. BELL.
-    ; "Next" link is good, copy to LOWTR and detokenize
+    ; "Next" link is good, copy to LOWTR
     sta @saveHack
     dey
     lda (LOWTR),y
@@ -1131,6 +1131,10 @@ NrmMaybeCtrlN:
 @saveHack = *+1
     lda #$00 ; MODIFIED above
     sta LOWTR+1
+    ; Now check the new "next" link.
+    ldy #1
+    lda (LOWTR),y
+    beq @bad ; Empty "next" link; we're past the last line (bad).
     jsr DetokenizeLine
     ; NOTE: repeats are _allowed_ (when successful).
     jmp ResetNormalMode
