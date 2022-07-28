@@ -539,6 +539,11 @@ InitViModeAndGetStarted:
     rts
 
 ViModeGetline:
+    ; Reset whether we're "in BASIC". Only do this when directly
+    ;  called by a user. XXX we should have a jump entry for here
+    lda #$00
+    sta ViPromptIsBasic
+ViModeGetlineInternal:
     ; Call to here if you want an explicit call to _our_ GETLN.
     ; Print the prompt...
     lda PROMPT
@@ -547,6 +552,10 @@ ViModeGetline:
 ViModeEntry:
     lda PROMPT
     sta SavePrompt
+    ; Clear any idea of BASIC "current line"
+    lda #$00
+    sta CurBasicLine
+    sta CurBasicLine+1
 InitViMode:
     ; Install direct keyin fn (no GETLN check)
     lda #<RealInput
@@ -652,8 +661,10 @@ MaybeCtrlBackslash:
 MaybeCtrlG:
     cmp #$87 ; C-G
     bne @nf
+    ; Fetch a line of BASIC (_if_ we're a BASIC prompt)
+    ;  from the number at the start of the buffer
     jsr MaybeFetchBasicLine
-    jmp InsertMode
+    jmp EnterNormalMode ; land in normal mode, for Ctrl-P/Ctrl-N
 @nf:
 MaybeCtrlL:
     cmp #$8C ; C-L ?
@@ -694,7 +705,7 @@ DoAbortLine:
     jsr COUT
     lda #$8D ; CR
     jsr COUT
-    jmp ViModeGetline
+    jmp ViModeGetlineInternal
 MaybeCtrlXOut:
 ;
 MaybeCtrlV:
@@ -1088,7 +1099,46 @@ NrmMaybeDELorBS:
 NrmMaybeCtrlG:
     cmp #$87 ; C-G
     bne @nf
+    ; Fetch a line of BASIC (_if_ we're a BASIC prompt)
+    ;  from the number at the start of the buffer
     jsr MaybeFetchBasicLine
+    ; Kill any current repeat
+    lda #0
+    sta RepeatCounter
+    jmp ResetNormalMode
+@nf:
+NrmMaybeCtrlN:
+    cmp #$8E ; C-N
+    bne @nf
+    ; Go to next line of BASIC (if we're already in one)
+    lda CurBasicLine+1
+    beq @bad ; -> we're not in a line of BASIC right now. BELL.
+    ; (If there's a "current line of BASIC", we don't have to check if
+    ;  we're "in BASIC")
+    lda CurBasicLine
+    sta LOWTR
+    lda CurBasicLine+1
+    sta LOWTR+1
+    ldy #1
+    ; Check high byte of "next line" link
+    lda (LOWTR),y
+    beq @bad ; -> no next line. BELL.
+    ; "Next" link is good, copy to LOWTR and detokenize
+    sta @saveHack
+    dey
+    lda (LOWTR),y
+    sta LOWTR
+@saveHack = *+1
+    lda #$00 ; MODIFIED above
+    sta LOWTR+1
+    jsr DetokenizeLine
+    ; NOTE: repeats are _allowed_ (when successful).
+    jmp ResetNormalMode
+@bad:
+    jsr BELL
+    ; don't repeat if we hit the end, so we don't spam BELLs
+    lda #0
+    sta RepeatCounter
     jmp ResetNormalMode
 @nf:
 NrmMaybeCtrlX:
@@ -1540,7 +1590,7 @@ MyRDKEY:
     ldx SaveS
     txs
     jsr CROUT ; Send a CR, as GETLN would
-    jmp ViModeGetline
+    jmp ViModeGetlineInternal
 .else
 MyRDKEY:
     lda $38
@@ -1646,7 +1696,16 @@ MaybeFetchBasicLine:
     jsr FNDLIN
     ldx SaveX
     bcc @bel ; bail, no such line number
-    ;; Yes! We have one. First, clear out the existing line (and its display)
+    ;; Yes! We found it! Now run our custom detokenizer to fill the line
+    jmp DetokenizeLine
+@bel:
+    jsr BELL
+    ; Reset the hight bits of things again
+    jsr LineNumberToHigh
+    rts
+DetokenizeLine:
+    ;; Clear out the existing line (and its display)
+
     ; Er, we could wait to clear out until we've refilled it, and then
     ; spew out extra spaces if we need to fill out the rest of the
     ; previous display, but... meh.
@@ -1659,19 +1718,16 @@ MaybeFetchBasicLine:
     ldy LineLength
     jsr EmitYCntBsp
     stx LineLength
-    ;; Now, run our own custom detokenizer to fill the line
-    jmp DetokenizeLine
-@bel:
-    jsr BELL
-    ; Reset the hight bits of things again
-    jsr LineNumberToHigh
-    rts
-DetokenizeLine:
-    ldy #2
-    ldx #0
+    ;; Make a note of our currently-edited BASIC line, for Ctrl-P and Ctrl-N
+    lda LOWTR
+    sta CurBasicLine
+    lda LOWTR+1
+    sta CurBasicLine+1
     ;; Get the line number into the buffer
     ; First, copy the (raw) line number into FAC
     ;  (stored in reverse order)
+    ldy #2
+    ldx #0
     lda (LOWTR),y
     sta FAC+2
     iny
@@ -1817,6 +1873,8 @@ DetokLastC: ; last-emitted char (screen code)
     .byte 0
 DetokLastT: ; last-emitted tok
     .byte 0
+CurBasicLine:
+    .word 0
 RepeatCounter:
     .byte 0
 NrmLastKey:
