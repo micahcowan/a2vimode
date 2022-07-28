@@ -13,14 +13,19 @@ CSW = $36
 LINNUM = $50 ; line number stored here after LINGET parse
 CURLIN = $75
 LOWTR  = $9B ; FINDLIN puts the pointer to a line here when found
+FAC = $9D
 
 CHRGET = $B1
 CHRGOT = $B7
 TXTPTR = $B8
 
 IN = $200
+TOK_TABLE = $D0D0
 FNDLIN = $D61A ; finds the location of a line from its number
+GETCHR = $D72C ; not to be confused with CHRGET in ZP. Gets chr from (FAC),y
 LINGET = $DA0C ; parses a line number from TXTPTR
+FLOAT_2 = $EBA0
+FOUT = $ED34
 VTAB = $FC22
 VTABZ = $FC24
 SCROLL = $FC70
@@ -138,7 +143,7 @@ PrintState:
     jsr SETINV
     jmp @sp
 StatusBarOn:
-    .byte $FF ; off by default
+    .byte 0 ; off by default
 StatusBarSetup:
     ; Ensure the current line is above the status display area
 @again:
@@ -1005,7 +1010,7 @@ NormalMode:
     ; in our normal mode, lowercase should be converted to upper.
     cmp #$E0    ; < 'a' ?
     bcc @nocvt  ; -> no
-    cmp #$FA    ; >= '{' 
+    cmp #$FA    ; >= '{'  
     bcs @nocvt
     sec
     sbc #$20
@@ -1084,7 +1089,7 @@ NrmMaybeCtrlG:
     cmp #$87 ; C-G
     bne @nf
     jsr MaybeFetchBasicLine
-    jmp InsertMode
+    jmp ResetNormalMode
 @nf:
 NrmMaybeCtrlX:
     cmp #$98
@@ -1641,20 +1646,177 @@ MaybeFetchBasicLine:
     jsr FNDLIN
     ldx SaveX
     bcc @bel ; bail, no such line number
+    ;; Yes! We have one. First, clear out the existing line (and its display)
+    ; Er, we could wait to clear out until we've refilled it, and then
+    ; spew out extra spaces if we need to fill out the rest of the
+    ; previous display, but... meh.
     jsr BackspaceToStart
+    txa
+    pha ; pulled up at end of DetokenizeLine
     ldx #0
     ldy LineLength
     jsr EmitYCntSpaces
     ldy LineLength
     jsr EmitYCntBsp
     stx LineLength
-    rts
+    ;; Now, run our own custom detokenizer to fill the line
+    jmp DetokenizeLine
 @bel:
     jsr BELL
     ; Reset the hight bits of things again
     jsr LineNumberToHigh
     rts
-;
+DetokenizeLine:
+    ldy #2
+    ldx #0
+    ;; Get the line number into the buffer
+    ; First, copy the (raw) line number into FAC
+    ;  (stored in reverse order)
+    lda (LOWTR),y
+    sta FAC+2
+    iny
+    lda (LOWTR),y
+    sta FAC+1
+    txa
+    pha
+        ldx #$90 ; exponent = 2^16
+        sec
+        jsr FLOAT_2 ; XXX can I depend on this location?
+        jsr FOUT
+    pla
+    tax
+    ldy #0
+@lnumLp:
+    lda $100,y
+    beq @lnumDn
+    ora #$80
+    sta IN,x
+    inx
+    iny
+    bne @lnumLp
+@lnumDn:
+    lda #$A0
+    sta IN,x
+    sta DetokLastC
+    inx
+    ;; Skip the "next" pointer and line number
+    lda LOWTR
+    clc
+    adc #4
+    sta LOWTR
+    lda LOWTR+1
+    adc #0
+    sta LOWTR+1
+    ldy #0
+@lineLoop:
+    ;; Grab the next token
+    lda (LOWTR),y
+    bne :+
+    jmp @finishUp
+:
+    sta DetokCurT
+    bmi @handleToken; -> token code, process it
+    ora #$80
+    sta DetokCurC
+    jsr DetokMaybeInsertSpace
+    lda DetokCurC
+    sta IN,x
+    inx
+    cpx kMaxLength
+    bne @loopIter
+    jmp @outOfRoom ; Line too long: truncate.
+@handleToken:
+    stx SaveX
+    sty SaveY
+    ;; Go searching for the token
+    sec
+    sbc #$7F ; convert token -> table idx (+1, for initial dex)
+    tax      ;  and store that in X-reg
+    ; Set up FAC to be a pointer to the token table (no one else is
+    ;  using it, and anyway this is how LIST does it)
+    ldy #<TOK_TABLE
+    sty FAC
+    ldy #(>TOK_TABLE)-1 ; first GETCHR will bump
+    sty FAC+1
+    ldy #$FF ; Y-reg is our scanner
+@fndTokLp:
+    dex
+    beq @fndTokDn
+@skipTok:
+    jsr GETCHR
+    bpl @skipTok
+    bmi @fndTokLp
+@fndTokDn:
+    ldx SaveX
+    ;; Print out the token
+    jsr GETCHR ; Get first char
+    sta SaveA
+    ora #$80 ; char -> printable
+    sta DetokCurC
+    jsr DetokMaybeInsertSpace ; now that we have the char to compare
+    lda DetokCurC
+    sta IN,x
+    inx
+    cpx kMaxLength
+    beq @outOfRoom
+    lda SaveA ; restore with original high bit
+    bmi @lastDone
+    ; second char
+@insTokNextChar:
+    jsr GETCHR
+    sta SaveA
+    ora #$80
+    sta IN,x
+    inx
+    cpx kMaxLength
+    beq @outOfRoom
+    lda SaveA
+    bpl @insTokNextChar
+@lastDone:
+    sta DetokCurC ; for next token's maybe-insert-space
+    ldy SaveY
+@loopIter:
+    lda DetokCurC
+    sta DetokLastC
+    lda DetokCurT
+    sta DetokLastT
+    iny
+    jmp @lineLoop
+@finishUp:
+    lda #$8D
+    sta IN,x
+    stx LineLength
+    ldx #0
+    jsr PrintRestOfLine
+    ldy LineLength
+    jsr EmitYCntBsp
+    ;; Restore original cursor pos
+    ;;  (and update screen)
+    pla ; restore original cursor pos
+    tay
+    cpy LineLength
+    bcc :+
+    ldy LineLength
+:
+    jsr PrintYNextChars
+    tya
+    tax
+    rts
+@outOfRoom:
+    ; XXX: retry without added spaces? garbage the line #?
+    ;  print special chars at end to flag the truncation?
+    ;  beep?
+    beq @finishUp
+DetokMaybeInsertSpace:
+    rts
+DetokCurC: ; current char (screen code)
+    .byte 0
+DetokCurT: ; last-emitted tok
+    .byte 0
+DetokLastC: ; last-emitted char (screen code)
+    .byte 0
+DetokLastT: ; last-emitted tok
+    .byte 0
 RepeatCounter:
     .byte 0
 NrmLastKey:
