@@ -138,7 +138,7 @@ PrintState:
     jsr SETINV
     jmp @sp
 StatusBarOn:
-    .byte $00 ; off by default
+    .byte $FF ; off by default
 StatusBarSetup:
     ; Ensure the current line is above the status display area
 @again:
@@ -452,12 +452,6 @@ StSvCH:.byte 0
     lda $100,x
     cmp #>RET_AS_RESTART
     bne @notBasic
-    ; We are whee we should be for a direct BASIC prompt,
-    ;  but let's double-check the value of CURLIN
-    ;  for an indication of "direct mode", just to be safe.
-    lda CURLIN+1
-    cmp #$FF
-    bne @notBasic
     ; Congrats! We're direct-mode in BASIC
     lda #$FF
     bne @storeIsBasic
@@ -653,28 +647,7 @@ MaybeCtrlBackslash:
 MaybeCtrlG:
     cmp #$87 ; C-G
     bne @nf
-    ; Are we in BASIC?
-    bit ViPromptIsBasic
-    bmi @bel
-    ; Unset low bits from start of line to first non-space, non-digit
-    jsr LineNumberToLow
-    ; Set up TXTPTR to input buffer
-    lda #<IN
-    sta TXTPTR
-    lda #>IN
-    sta TXTPTR+1
-    jsr CHRGOT
-    bcs @bel ; > bail, the first char in input buffer isn't a digit...
-    stx SaveX
-    jsr LINGET
-    jsr FNDLIN
-    ldx SaveX
-    bcc @bel ; bail, no such line number
-    brk
-@bel:
-    jsr BELL
-    ; Reset the hight bits of things again
-    jsr LineNumberToHigh
+    jsr MaybeFetchBasicLine
     jmp InsertMode
 @nf:
 MaybeCtrlL:
@@ -1106,6 +1079,12 @@ NrmMaybeDELorBS:
 @eq:
     jsr Backspace
     jmp ResetNormalMode
+@nf:
+NrmMaybeCtrlG:
+    cmp #$87 ; C-G
+    bne @nf
+    jsr MaybeFetchBasicLine
+    jmp InsertMode
 @nf:
 NrmMaybeCtrlX:
     cmp #$98
@@ -1638,11 +1617,42 @@ LineNumberToHigh:
 @lp:
     lda IN,y
     bmi @rt
-    ora $80
+    ora #$80
     sta IN,y
     iny
     bne @lp
 @rt:
+    rts
+MaybeFetchBasicLine:
+    ; Are we in BASIC?
+    bit ViPromptIsBasic
+    bpl @bel
+    ; Unset low bits from start of line to first non-space, non-digit
+    jsr LineNumberToLow
+    ; Set up TXTPTR to input buffer
+    lda #<IN
+    sta TXTPTR
+    lda #>IN
+    sta TXTPTR+1
+    jsr CHRGOT
+    bcs @bel ; > bail, the first char in input buffer isn't a digit...
+    stx SaveX
+    jsr LINGET
+    jsr FNDLIN
+    ldx SaveX
+    bcc @bel ; bail, no such line number
+    jsr BackspaceToStart
+    ldx #0
+    ldy LineLength
+    jsr EmitYCntSpaces
+    ldy LineLength
+    jsr EmitYCntBsp
+    stx LineLength
+    rts
+@bel:
+    jsr BELL
+    ; Reset the hight bits of things again
+    jsr LineNumberToHigh
     rts
 ;
 RepeatCounter:
