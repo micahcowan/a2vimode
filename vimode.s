@@ -29,6 +29,8 @@ BELL = $FF3A
 
 RET_RDCHAR = $FD37
 RET_GETLN  = $FD77
+RET_AS_INLINE = $D532
+RET_AS_RESTART = $D443
 
 ;
 
@@ -38,7 +40,7 @@ STRC_BASE = $7D0 ; line 23 (last line)
 PromptNormalChar = $AD ; '-'
 PromptCaptureChar= $A3 ; '#'
 
-;DEBUG=1
+DEBUG=1
 
 .ifndef DEBUG
 kMaxLength = $FE
@@ -175,10 +177,22 @@ ToggleStatusBar:
     ;
 PrintStackTraceSuccess:
     jsr StackTraceSetup
+    lda ViPromptIsBasic
+    bmi @basic
     ; indicate that we did detect GETLN
     lda #$D9 ; Y
     jsr COUT
     lda #$C5 ; E
+    jsr COUT
+    lda #$D3 ; S
+    jsr COUT
+    lda #$A0 ; SPC
+    jsr COUT
+    jmp PrintStack
+@basic:
+    lda #$C2 ; B
+    jsr COUT
+    lda #$C1 ; A
     jsr COUT
     lda #$D3 ; S
     jsr COUT
@@ -338,12 +352,16 @@ StSvCH:.byte 0
     bcc @secondCaller ; -> this caller is our first of up to two #$Cxxx
                       ;    callers; head to the next.
     cmp #>RET_RDCHAR
-    bne @checkFailed  ; -> This caller matches none of our criteria. Bail.
+    beq @hiGood
+    jmp @checkFailed  ; -> This caller matches none of our criteria. Bail.
+@hiGood:
     ; Check the low byte.
     dex
     lda $100,x
     cmp #<RET_RDCHAR
-    bne @checkFailed ; -> Not RDCHAR after all. Bail.
+    beq @lowGood
+    jmp @checkFailed ; -> Not RDCHAR after all. Bail.
+@lowGood:
     inx
     jmp @maybeGetln ; this was RDCHAR, so next must be GETLN to pass.
 
@@ -399,15 +417,6 @@ StSvCH:.byte 0
     bne @checkFailed
 
     ; Eureka! We have it.
-.ifdef DEBUG
-    ; possibly print the status bar
-    lda StatusBarOn ; (may have come here without toggle)
-    bpl @nostatus
-    stx SaveA ; never mind the name...
-    jsr PrintStackTraceSuccess
-    ldx SaveA
-@nostatus:
-.endif ; DEBUG
     ; Now, swap it for ours.
     lda #>(ViModeEntry-1)
     sta $100,x
@@ -415,6 +424,39 @@ StSvCH:.byte 0
     lda #<(ViModeEntry-1)
     sta $100,x
 
+    ; Check to see if, additionally, GETLN was called from
+    ;  the BASIC program-entry (general) prompt
+    inx
+    inx
+    lda $100,x
+    cmp #<RET_AS_INLINE
+    bne @notBasic
+    inx
+    lda $100,x
+    cmp #>RET_AS_INLINE
+    bne @notBasic
+    inx
+    lda $100,x
+    cmp #<RET_AS_RESTART
+    bne @notBasic
+    inx
+    lda $100,x
+    cmp #>RET_AS_RESTART
+    bne @notBasic
+    lda #$FF
+    bne @storeIsBasic
+@notBasic:
+    lda #$00
+@storeIsBasic:
+    sta ViPromptIsBasic
+
+.ifdef DEBUG
+    ; possibly print the status bar
+    lda StatusBarOn ; (may have come here without toggle)
+    bpl @nostatus
+    jsr PrintStackTraceSuccess
+@nostatus:
+.endif ; DEBUG
     ; ...and return.
     ;
     ; ...We're going to land in "our" ViMode, so why don't we go ahead
@@ -1555,6 +1597,8 @@ LineLength:
 TmpWord:
     .word 0
 AppendModeFLag:
+    .byte 0
+ViPromptIsBasic:
     .byte 0
 
 ; The generated version string
