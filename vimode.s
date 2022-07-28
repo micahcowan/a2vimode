@@ -10,6 +10,7 @@ BASE = $28
 INVFLAG = $32
 PROMPT = $33
 CSW = $36
+CURLIN = $75
 
 IN = $200
 VTAB = $FC22
@@ -443,6 +444,13 @@ StSvCH:.byte 0
     lda $100,x
     cmp #>RET_AS_RESTART
     bne @notBasic
+    ; We are whee we should be for a direct BASIC prompt,
+    ;  but let's double-check the value of CURLIN
+    ;  for an indication of "direct mode", just to be safe.
+    lda CURLIN+1
+    cmp #$FF
+    bne @notBasic
+    ; Congrats! We're direct-mode in BASIC
     lda #$FF
     bne @storeIsBasic
 @notBasic:
