@@ -664,6 +664,9 @@ MaybeCtrlG:
     ; Fetch a line of BASIC (_if_ we're a BASIC prompt)
     ;  from the number at the start of the buffer
     jsr MaybeFetchBasicLine
+    bcs @succeed
+    jmp InsertMode ; if we fail, stay in insert mode
+@succeed:
     jmp EnterNormalMode ; land in normal mode, for Ctrl-P/Ctrl-N
 @nf:
 MaybeCtrlL:
@@ -975,6 +978,7 @@ ResetNormalMode:
     bne @copyBackLoop
 @deleteDone:
     lda #$8D ; we don't really need to terminate with a CR here,
+    ldy LineLength
     sta IN,y ; but what the heck.
     ; subtract from LineLength
     lda LineLength
@@ -1786,10 +1790,17 @@ ShowVersion:
 @mySaveX:
     .byte 0
 LineNumberToLow:
-    txa
-    tay
+    stx LineNumLoc
+    ; In case the line nunmber is _right at_ the end of the line,
+    ;  be SURE there are no valid low-value digits past the end of the
+    ;  line, where LINGET might mistake it for part of our number!
+    ldy LineLength
+    lda #$8D
+    sta IN,y
+    ;
+    ldy #0
 @lp:
-    lda IN,y
+    lda IN,x
     and #$7F
     cmp #$20
     beq @st
@@ -1798,38 +1809,51 @@ LineNumberToLow:
     cmp #$3A
     bcs @rt ; A > '9' (>= ':') and != SPC? done
 @st:
-    sta IN,y
+    sta IN,x
     iny
+    inx
     bne @lp
 @rt:
+    ldx LineNumLoc
+    sty LineNumLen
     rts
 LineNumberToHigh:
     txa
-    tay
+    pha
+        ldx LineNumLoc
+        ldy LineNumLen
+        cpy #0
+        beq @rt
 @lp:
-    lda IN,y
-    bmi @rt
-    ora #$80
-    sta IN,y
-    iny
-    bne @lp
+        lda IN,x
+        ora #$80
+        sta IN,x
+        inx
+        dey
+        bne @lp
 @rt:
+    pla
+    tax
     rts
+LineNumLoc:
+    .byte 0
+LineNumLen:
+    .byte 0
 MaybeFetchBasicLine:
     stx @saveX
     ; Are we in BASIC?
     bit ViPromptIsBasic
-    bpl @bel
+    bpl @belNoConvert
     ; Are we on or just after a number?
     lda IN,x
     jsr GetIsDigit
     bcs @haveDig
     cpx #0
-    beq @bel
+    beq @belNoConvert
     dex
     lda IN,x
     jsr GetIsDigit
-    bcc @bel
+    bcc @belNoConvert
 @haveDig:
     jsr MoveBackWhileDigit
     ; Unset low bits from start of line to first non-space, non-digit
@@ -1843,7 +1867,7 @@ MaybeFetchBasicLine:
     adc #0
     sta TXTPTR+1
     jsr CHRGOT
-    bcs @bel ; > bail, the first char in input buffer isn't a digit...
+    bcs @bel ; -> SHOULDN'T HAPPEN?? no digit found
     jsr LINGET
     jsr FNDLIN
 .if 1
@@ -1864,10 +1888,12 @@ MaybeFetchBasicLine:
     ldx #$00 ; OVERWRITTEN
     jmp DetokenizeLine
 @bel:
-    jsr BELL
     ; Reset the hight bits of things again
     jsr LineNumberToHigh
+@belNoConvert:
+    jsr BELL
     ldx @saveX
+    clc ; to indicate failure
     rts
 DetokenizeLine:
     ;; Clear out the existing line (and its display)
@@ -2029,6 +2055,7 @@ DetokenizeLine:
     jsr PrintYNextChars
     tya
     tax
+    sec ; for success checks
     rts
 @outOfRoom:
     ; XXX: retry without added spaces? garbage the line #?
