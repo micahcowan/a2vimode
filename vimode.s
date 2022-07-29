@@ -1401,6 +1401,7 @@ GetIsWordChar:
     cmp #$C1
     bcs GiwcAlphaArea ; -> we _might_ be an alphabetic character
     ; We're in the non-alpha section. Are we a number?
+GetIsDigit:
     cmp #$B0 ; >= '0' ?
     bcc GiwcRts ; -> No. We can't be a word char, then.
     cmp #$BA ; > '9' (>= ':')?
@@ -1446,10 +1447,24 @@ MoveBackWord:
     beq @giveUp ; give up if there was only non-word space to back over
     jmp BackWhileWord
 @giveUp:
-    ldx @privSave
+@privSave = * + 1
+    ldx #$00 ; OVERWRITTEN
     rts
-@privSave:
-    .byte 0
+MoveBackWhileDigit:
+    cpx #0
+    beq @rt
+@lp:
+    dex
+    lda IN,x
+    jsr GetIsDigit
+    bcc @notDigit
+    cpx #0
+    bne @lp
+@rt:
+    rts ;
+@notDigit:
+    inx
+    rts
 MoveWhileWord:
 @lp:
     cpx LineLength
@@ -1675,7 +1690,8 @@ ShowVersion:
 @mySaveX:
     .byte 0
 LineNumberToLow:
-    ldy #0
+    txa
+    tay
 @lp:
     lda IN,y
     and #$7F
@@ -1692,7 +1708,8 @@ LineNumberToLow:
 @rt:
     rts
 LineNumberToHigh:
-    ldy #0
+    txa
+    tay
 @lp:
     lda IN,y
     bmi @rt
@@ -1703,33 +1720,51 @@ LineNumberToHigh:
 @rt:
     rts
 MaybeFetchBasicLine:
+    stx @saveX
     ; Are we in BASIC?
     bit ViPromptIsBasic
     bpl @bel
+    ; Are we on a number?
+    lda IN,x
+    jsr GetIsDigit
+    bcc @bel
+    jsr MoveBackWhileDigit
     ; Unset low bits from start of line to first non-space, non-digit
     jsr LineNumberToLow
     ; Set up TXTPTR to input buffer
-    lda #<IN
+    txa
+    clc
+    adc #<IN
     sta TXTPTR
     lda #>IN
+    adc #0
     sta TXTPTR+1
     jsr CHRGOT
     bcs @bel ; > bail, the first char in input buffer isn't a digit...
-    stx SaveX
     jsr LINGET
     jsr FNDLIN
-    ldx SaveX
+.if 1
+    bcc @bel ; bail, no such line number
+.else
+    ;; I wrote this, but immediaely abandoned it for "go to line at
+    ;;  cursor", as otherwise one may mistakenly believe we successfully
+    ;;  followed a dangling line number reference
+
     ; Whether it succeeded in finding "the" number or not, it will have
     ; left the line after it in LOWTR; let's get that one instead
     ldy #1
     lda (LOWTR),y
     beq @bel ; ->Ah! no... it was higher than the last line. Bell and bail.
+.endif
     ;; Yes! We found it! Now run our custom detokenizer to fill the line
+@saveX = * + 1
+    ldx #$00 ; OVERWRITTEN
     jmp DetokenizeLine
 @bel:
     jsr BELL
     ; Reset the hight bits of things again
     jsr LineNumberToHigh
+    ldx @saveX
     rts
 DetokenizeLine:
     ;; Clear out the existing line (and its display)
