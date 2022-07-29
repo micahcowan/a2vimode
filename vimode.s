@@ -11,6 +11,7 @@ INVFLAG = $32
 PROMPT = $33
 CSW = $36
 LINNUM = $50 ; line number stored here after LINGET parse
+TXTTAB = $67
 CURLIN = $75
 LOWTR  = $9B ; FINDLIN puts the pointer to a line here when found
 FAC = $9D
@@ -554,8 +555,8 @@ ViModeEntry:
     sta SavePrompt
     ; Clear any idea of BASIC "current line"
     lda #$00
-    sta CurBasicLine
-    sta CurBasicLine+1
+    sta CurBasicLinePtr
+    sta CurBasicLinePtr+1
 InitViMode:
     ; Install direct keyin fn (no GETLN check)
     lda #<RealInput
@@ -1111,17 +1112,84 @@ NrmMaybeCtrlG:
     sta RepeatCounter
     jmp ResetNormalMode
 @nf:
+NrmMaybeCtrlP:
+    cmp #$90 ; C-P
+    bne @nf
+    lda CurBasicLinePtr+1
+    beq @bad
+    ;; Okay, so our current line is the target.
+    ;; We have to start from the beginning of the program, following
+    ;; links, until we hit one that links tou ours.
+    ; First, check that the start-of-program isn't at (or past) our
+    ; line. If it is, then obviously we're not going to be backing up
+    ; any.
+    lda TXTTAB+1
+    cmp CurBasicLinePtr+1
+    bcc @notPast
+    ; >=. Is it =?
+    bne @bad ; -> high byte of prog start > our line. Bail.
+    lda TXTTAB
+    cmp CurBasicLinePtr
+    bcs @bad ; -> high byte is equal, low byte > our line. Bail.
+@notPast:
+    ; Load start-of-program into LOWTR
+    lda TXTTAB
+    sta LOWTR
+    lda TXTTAB+1
+    sta LOWTR+1
+@lp:
+    ; Check the high byte of the "next" link
+    ldy #1
+    lda (LOWTR),y
+    beq @bad   ; -> We are PAST the LAST line. This shouldn't happen,
+               ;    since CurBasicLin is supposed to be a known-good
+               ;    pointer... just bail.
+    cmp CurBasicLinePtr+1
+    bcc @lowerThanTarget
+    bne @bad   ; -> "Next" is PAST our target line. This shouldn't happen,
+               ;    since CurBasicLin is supposed to be a known-good
+               ;    pointer... just bail.
+    ; High byte equal to ours; check low byte
+    dey
+    lda (LOWTR),y
+    cmp CurBasicLinePtr
+    bcc @lowerThanTarget
+    bne @bad   ; -> "Next" is PAST our target line. This shouldn't happen,
+               ;    since CurBasicLin is supposed to be a known-good
+               ;    pointer... just bail.
+    ; Congratulations! We're at the preceding line! Detokenize it
+    ; into buffer.
+    jsr DetokenizeLine
+    jmp ResetNormalMode
+@lowerThanTarget:
+    ; Follow "next" link and try again
+    ldy #0
+    lda (LOWTR),y
+    pha
+        iny
+        lda (LOWTR),y
+        sta LOWTR+1
+    pla
+    sta LOWTR
+    jmp @lp
+@bad:
+    jsr BELL
+    ; don't repeat if we hit the beginning, so we don't spam BELLs.
+    lda #0
+    sta RepeatCounter
+    jmp ResetNormalMode
+@nf:
 NrmMaybeCtrlN:
     cmp #$8E ; C-N
     bne @nf
     ; Go to next line of BASIC (if we're already in one)
-    lda CurBasicLine+1
+    lda CurBasicLinePtr+1
     beq @bad ; -> we're not in a line of BASIC right now. BELL.
     ; (If there's a "current line of BASIC", we don't have to check if
     ;  we're "in BASIC")
-    lda CurBasicLine
+    lda CurBasicLinePtr
     sta LOWTR
-    lda CurBasicLine+1
+    lda CurBasicLinePtr+1
     sta LOWTR+1
     ldy #1
     ; Check high byte of "next line" link
@@ -1912,9 +1980,9 @@ DetokenizeLine:
     stx LineLength
     ;; Make a note of our currently-edited BASIC line, for Ctrl-P and Ctrl-N
     lda LOWTR
-    sta CurBasicLine
+    sta CurBasicLinePtr
     lda LOWTR+1
-    sta CurBasicLine+1
+    sta CurBasicLinePtr+1
     ;; Get the line number into the buffer
     ; First, copy the (raw) line number into FAC
     ;  (stored in reverse order)
@@ -2119,7 +2187,7 @@ DetokLastC: ; last-emitted char (screen code)
     .byte 0
 DetokLastT: ; last-emitted tok
     .byte 0
-CurBasicLine:
+CurBasicLinePtr:
     .word 0
 RepeatCounter:
     .byte 0
