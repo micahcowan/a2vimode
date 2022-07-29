@@ -1719,7 +1719,11 @@ MaybeFetchBasicLine:
     jsr LINGET
     jsr FNDLIN
     ldx SaveX
-    bcc @bel ; bail, no such line number
+    ; Whether it succeeded in finding "the" number or not, it will have
+    ; left the line after it in LOWTR; let's get that one instead
+    ldy #1
+    lda (LOWTR),y
+    beq @bel ; ->Ah! no... it was higher than the last line. Bell and bail.
     ;; Yes! We found it! Now run our custom detokenizer to fill the line
     jmp DetokenizeLine
 @bel:
