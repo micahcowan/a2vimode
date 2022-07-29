@@ -1386,6 +1386,11 @@ TryGoRightOne:
     inx
 @rts:
     rts
+GetIsWordOrNum:
+    cmp #$AD ; dash (-) ?
+    beq GiwcRts
+    cmp #$AE ; period (.) ?
+    beq GiwcRts
 GetIsWordChar:
     ; Exits with carry set if Areg is a word char
     ;
@@ -1394,7 +1399,22 @@ GetIsWordChar:
     ; (leaving alphanum).
     ; XXX is: word is everything >= #$C1
     cmp #$C1
+    bcs GiwcAlphaArea ; -> we _might_ be an alphabetic character
+    ; We're in the non-alpha section. Are we a number?
+    cmp #$B0 ; >= '0' ?
+    bcc GiwcRts ; -> No. We can't be a word char, then.
+    cmp #$BA ; > '9' (>= ':')?
+GiwcReverseCarryAndReturn:
+    rol
+    eor #$01
+    ror
+GiwcRts:
     rts
+GiwcAlphaArea:
+    and #$DF ; get rid of any lowercase bit
+    cmp #$DB ; > 'Z' (>= '[')?
+    jmp GiwcReverseCarryAndReturn
+;
 BackWhileWord:
 @lp:
     cpx #0
