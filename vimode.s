@@ -1175,6 +1175,50 @@ NrmMaybeCtrlBackslash:
     jmp ResetNormalMode
 @nf:
 .endif
+NrmMaybeNumForward:
+    cmp #$A3 ; # ?
+    bne NumForwardSkip
+    ; Mark the search
+    lda #$FF
+    sta AmSearchingNums
+NumForward:
+    stx SaveA ; never mind name
+    jsr MoveForwardNumber
+    bit CaptureFlag
+    bmi @skipPr
+    jsr PrintForwardMoveFromSaveA
+@skipPr:
+    jmp ResetNormalMode
+NumForwardSkip:
+NrmMaybeSemicolon:
+    cmp #$BB ; semicolon (;) ?
+    bne @nf
+    bit AmSearchingNums
+    bmi NumForward
+    jmp ResetNormalMode
+@nf:
+NrmMaybeComma:
+    cmp #$AC ; ','
+    bne @nf
+    bit AmSearchingNums
+    bpl @notSrchNums
+    stx @origPos
+    jsr MoveBackNumber
+    bit CaptureFlag
+    bmi @skipPr
+    ; update the cursor on the line if not capturing the movement
+    stx @newPos
+@origPos = * + 1
+    lda #$00 ; OVERWRITTEN
+    sec
+@newPos = * + 1
+    sbc #$00 ; OVERWRITTEN
+    tay
+    jsr EmitYCntBsp
+@skipPr:
+@notSrchNums:
+    jmp ResetNormalMode
+@nf:
 ;; Check for "CC" and "DD"
 NrmMaybeLineKill:
     bit CaptureFlag
@@ -1440,6 +1484,16 @@ BackWhileNotWord:
         ; follow BackWhileNotWord with BackWhileWord
 @done:
     rts
+MoveBackNumber:
+    stx @saveX
+    jsr MoveBackWhileNotDigit
+    cpx #0
+    beq @giveUp ; give up if there was only non-digit space to back over
+    jmp MoveBackWhileDigit
+@giveUp:
+@saveX = * + 1
+    ldx #$00 ; OVERWRITTEN
+    rts
 MoveBackWord:
     stx @privSave
     jsr BackWhileNotWord
@@ -1450,20 +1504,49 @@ MoveBackWord:
 @privSave = * + 1
     ldx #$00 ; OVERWRITTEN
     rts
+MoveBackWhileNotDigit:
+    lda #$B0
+    bne MoveBackWhileDigit_
 MoveBackWhileDigit:
+    lda #$90
+MoveBackWhileDigit_:
+    sta @op
     cpx #0
     beq @rt
 @lp:
     dex
     lda IN,x
     jsr GetIsDigit
-    bcc @notDigit
+@op = *
+    bcc @notDigit ; OPCODE may get overwritten!
     cpx #0
     bne @lp
 @rt:
     rts ;
 @notDigit:
     inx
+    rts
+MoveWhileDigit:
+@lp:
+    cpx LineLength
+    beq @done
+    lda IN,x
+    jsr GetIsDigit
+    bcc @done
+    inx
+    bne @lp
+@done:
+    rts
+MoveWhileNotDigit:
+@lp:
+    cpx LineLength
+    beq @done
+    lda IN,x
+    jsr GetIsDigit
+    bcs @done
+    inx
+    bne @lp
+@done:
     rts
 MoveWhileWord:
 @lp:
@@ -1486,6 +1569,19 @@ MoveWhileNotWord:
     inx
     bne @lp
 @done:
+    rts
+MoveForwardNumber:
+    stx @saveX
+    jsr MoveWhileDigit
+    jsr GetIsDigit
+    bcs @bail ; -> we never escaped a number we were in; we failed
+    jsr MoveWhileNotDigit
+    jsr GetIsDigit
+    bcc @bail ; -> we never reached a new number; we failed
+    rts ; SUCCESS!
+@bail:
+@saveX = * + 1
+    ldx #$00 ; OVERWRITTEN
     rts
 MoveForwardWord:
     stx @privSave0
@@ -1724,10 +1820,17 @@ MaybeFetchBasicLine:
     ; Are we in BASIC?
     bit ViPromptIsBasic
     bpl @bel
-    ; Are we on a number?
+    ; Are we on or just after a number?
+    lda IN,x
+    jsr GetIsDigit
+    bcs @haveDig
+    cpx #0
+    beq @bel
+    dex
     lda IN,x
     jsr GetIsDigit
     bcc @bel
+@haveDig:
     jsr MoveBackWhileDigit
     ; Unset low bits from start of line to first non-space, non-digit
     jsr LineNumberToLow
@@ -2014,6 +2117,10 @@ LineLength:
 TmpWord:
     .word 0
 AppendModeFLag:
+    .byte 0
+AmSearchingNums:
+    .byte 0
+SearchChar:
     .byte 0
 ViPromptIsBasic:
     .byte 0
