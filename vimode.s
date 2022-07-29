@@ -1799,6 +1799,10 @@ DetokenizeLine:
     ora #$80
     sta DetokCurC
     jsr DetokMaybeInsertSpace
+    cpx kMaxLength
+    bne :+
+    jmp @outOfRoom
+:
     lda DetokCurC
     sta IN,x
     inx
@@ -1834,6 +1838,8 @@ DetokenizeLine:
     ora #$80 ; char -> printable
     sta DetokCurC
     jsr DetokMaybeInsertSpace ; now that we have the char to compare
+    cpx kMaxLength
+    beq @outOfRoom
     lda DetokCurC
     sta IN,x
     inx
@@ -1888,6 +1894,53 @@ DetokenizeLine:
     ;  beep?
     beq @finishUp
 DetokMaybeInsertSpace:
+    lda DetokLastT
+    ora DetokCurT
+    ; If both the current and prev char were ordinary chars,
+    ;  we MUST NOT emit a space. Could be in a string literal, or REM!
+    bpl @no
+@atLeastOneTok:
+    lda DetokCurC
+    cmp #$A0
+    beq @no ; -> No. We're _about_ to emit a space.
+    lda DetokLastC
+    cmp #$A0
+    beq @no ; -> Last char was already a space. Bail.
+    jsr GetIsWordChar
+    bcc @no ; -> No space. Never need a space after punctuation.
+    lda DetokLastT
+    ; No matter what, never emit a space after REM. One will be included
+    ;  if desired.
+    cmp #$B2 ; REM ?
+    beq @no
+    ;
+    lda DetokCurC
+    jsr GetIsWordOrNum
+    ; When at least one is a token, and both are word chars,
+    ;  ALWAYS emit a space.
+    bcs @yes
+    ; If we're here, preceding token ended with word char, and
+    ;  current char is non-word
+    lda DetokCurC
+    cmp #$BA ; colon (:) ?
+    beq @no ; colons never need a space.
+    cmp #$BD
+    beq @no ; no spaces before =, either
+@lastWasTok:
+    ; is prev a math fn, and we're a left-paren?
+    cmp #$A8 ; '(' ?
+    bne @yes ; anything else gets a space before its argument (or
+             ;  before random garbage)
+    ; We're a left-paren. Was prev a function?
+    lda DetokLastT
+    cmp #$D2
+    bcs @no ; Yes; we don't need a space.
+    ; Otherwise, we do.
+@yes:
+    lda #$A0
+    sta IN,x
+    inx
+@no:
     rts
 DetokCurC: ; current char (screen code)
     .byte 0
