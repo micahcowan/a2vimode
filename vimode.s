@@ -737,16 +737,20 @@ NoRoomRight:
     jmp InsertMode
 DoCR:
     jsr PrintRestOfLine ; jump to end
-    ldx LineLength
-    lda #$8D ; CR
-    sta IN,x ; make damn sure we're locked off with a CR
-    jsr COUT ; ...and emit one, as GETLN would.
     ; Restore the check for GETLN
+    ; NOTE: this HAS to happen before sending out the CR
+    ; below - believe it or not, DOS hijacks the stack immediately
+    ; after and never lets us return. Not all the time, but for
+    ; some DOS commands: at least "LOAD".
     lda #<CheckForGetline
     sta InputRedirFn
     lda #>CheckForGetline
     sta InputRedirFn+1
-    lda #$8D
+    ;
+    ldx LineLength
+    lda #$8D ; CR
+    sta IN,x ; make damn sure we're locked off with a CR
+    jsr COUT ; ...and emit one, as GETLN would.
     rts
 BackspaceFromEOL:
     ; Now backspace back again to where we actually are, so next input
