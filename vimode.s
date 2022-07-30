@@ -1912,10 +1912,9 @@ MaybeFetchBasicLine:
     rts
 DetokenizeLine:
     ;; Clear out the existing line (and its display)
+    lda #$00
+    sta NoSpaces
 
-    ; Er, we could wait to clear out until we've refilled it, and then
-    ; spew out extra spaces if we need to fill out the rest of the
-    ; previous display, but... meh.
     jsr BackspaceToStart
     txa
     pha ; pulled up at end of DetokenizeLine
@@ -1930,6 +1929,7 @@ DetokenizeLine:
     sta CurBasicLinePtr
     lda LOWTR+1
     sta CurBasicLinePtr+1
+@noSpLoop:
     ;; Get the line number into the buffer
     ; First, copy the (raw) line number into FAC
     ;  (stored in reverse order)
@@ -1958,10 +1958,13 @@ DetokenizeLine:
     iny
     bne @lnumLp
 @lnumDn:
+    bit NoSpaces
+    bmi :+
     lda #$A0
     sta IN,x
     sta DetokLastC
     inx
+:
     ;; Skip the "next" pointer and line number
     lda LOWTR
     clc
@@ -1993,6 +1996,18 @@ DetokenizeLine:
     bne @loopIter
     jmp @outOfRoom ; Line too long: truncate.
 @handleToken:
+    bit NoSpaces
+    bpl @regularToken
+    ; we're in space-saving mode.
+    cmp #$BA ; is it a PRINT?
+    bne @regularToken
+    lda #$BF ; insert a "?" rather than "PRINT"
+    sta IN,x
+    inx
+    cpx kMaxLength
+    bne @loopIter
+    jmp @outOfRoom ; -> still ran out of room
+@regularToken:
     stx SaveX
     sty SaveY
     ;; Go searching for the token
@@ -2073,11 +2088,37 @@ DetokenizeLine:
     sec ; for success checks
     rts
 @outOfRoom:
-    ; XXX: retry without added spaces? garbage the line #?
-    ;  print special chars at end to flag the truncation?
-    ;  beep?
-    beq @finishUp
+    bit NoSpaces
+    bmi @abort
+    lda #$FF
+    sta NoSpaces
+    ; We skipped LOWTR past link/number during detok - fix back up
+    lda CurBasicLinePtr
+    sta LOWTR
+    lda CurBasicLinePtr+1
+    sta LOWTR+1
+    jmp @noSpLoop ; Start over again with spaces disabled, see if
+                  ; that gives us enough room
+@abort:
+    jsr BELL
+    ; Obliterate line number with ?????, so user can't edit/save
+    ;  an unfinished line
+    ldx #0
+    lda #$BF
+@obl:
+    sta IN,x
+    inx
+    cpx #5
+    bne @obl
+    ;
+    ldx #kMaxLength
+    jmp @finishUp
+;
 DetokMaybeInsertSpace:
+    bit NoSpaces
+    bpl :+
+    rts ; Don't insert spaces if we're in "no spaces" mode to conserve space.
+:
     lda DetokLastT
     ora DetokCurT
     ; If both the current and prev char were ordinary chars,
@@ -2424,6 +2465,8 @@ BasicLineBack:
 @bad:
     clc
     rts
+NoSpaces:
+    .byte 0
 DetokCurC: ; current char (screen code)
     .byte 0
 DetokCurT: ; last-emitted tok
