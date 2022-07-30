@@ -659,6 +659,26 @@ MaybeCtrlBackslash:
     jmp InsertMode
 @nf:
 .endif
+MaybeCtrlP:
+    cmp #$90 ; C-P
+    bne @nf
+    jsr BasicLineBack
+    bcc @bad
+    jmp EnterNormalMode ; land in normal mode, for e.g. #
+@bad:
+    jsr BELL
+    jmp InsertMode
+@nf:
+MaybeCtrlN:
+    cmp #$8E ; C-N
+    bne @nf
+    jsr BasicLineForward
+    bcc @bad
+    jmp EnterNormalMode ; land in normal mode, for e.g. #
+@bad:
+    jsr BELL
+    jmp InsertMode
+@nf:
 MaybeCtrlG:
     cmp #$87 ; C-G
     bne @nf
@@ -668,7 +688,7 @@ MaybeCtrlG:
     bcs @succeed
     jmp InsertMode ; if we fail, stay in insert mode
 @succeed:
-    jmp EnterNormalMode ; land in normal mode, for Ctrl-P/Ctrl-N
+    jmp EnterNormalMode ; land in normal mode, for e.g. #
 @nf:
 MaybeCtrlL:
     cmp #$8C ; C-L ?
@@ -1121,57 +1141,8 @@ NrmMaybeCtrlG:
 NrmMaybeCtrlP:
     cmp #$90 ; C-P
     bne @nf
-    lda CurBasicLinePtr+1
-    bne @useLinePtr
-    ;; Don't have a line pointer... but we may be able to use a line #
-    ; First, ensure we're in BASIC
-    bit ViPromptIsBasic
-    bpl @bad ; -> not in BASIC. Bail.
-    lda LastEnteredLineNum
-    cmp #$FF
-    bne @useLineNum
-    lda LastEnteredLineNum+1
-    cmp #$FF
-    beq @bad
-@useLineNum:
-    lda TXTTAB
-    sta LOWTR
-    lda TXTTAB+1
-    sta LOWTR+1
-    lda #<AtSameOrPrevLineNumP
-    ldy #>AtSameOrPrevLineNumP
-    jsr TraverseLineLinks
-    bpl @good
-    bmi @bad
-@useLinePtr:
-    ;; Okay, so our current line is the target.
-    ;; We have to start from the beginning of the program, following
-    ;; links, until we hit one that links tou ours.
-    ; First, check that the start-of-program isn't at (or past) our
-    ; line. If it is, then obviously we're not going to be backing up
-    ; any.
-    lda TXTTAB+1
-    cmp CurBasicLinePtr+1
-    bcc @notPast
-    ; >=. Is it =?
-    bne @bad ; -> high byte of prog start > our line. Bail.
-    lda TXTTAB
-    cmp CurBasicLinePtr
-    bcs @bad ; -> high byte is equal, low byte > our line. Bail.
-@notPast:
-    ; Load start-of-program into LOWTR
-    lda TXTTAB
-    sta LOWTR
-    lda TXTTAB+1
-    sta LOWTR+1
-    lda #<AtPrecedingLineLinkP
-    ldy #>AtPrecedingLineLinkP
-    jsr TraverseLineLinks
-    bmi @bad
-@good:
-    ; Congratulations! We're at the preceding line! Detokenize it
-    ; into buffer.
-    jsr DetokenizeLine ; this also sets as "current BASIC line"
+    jsr BasicLineBack
+    bcc @bad
     jmp ResetNormalMode
 @bad:
     jsr BELL
@@ -1183,54 +1154,8 @@ NrmMaybeCtrlP:
 NrmMaybeCtrlN:
     cmp #$8E ; C-N
     bne @nf
-    ; Go to next line of BASIC (if we're already in one)
-    lda CurBasicLinePtr+1
-    bne @useLinePtr ; -> we're in a line of BASIC right now, go to next
-    ; Are we "in BASIC"?
-    bit ViPromptIsBasic
-    bpl @bad ; -> Not in BASIC
-    lda LastEnteredLineNum
-    cmp #$FF
-    bne @useLineNum
-    lda LastEnteredLineNum
-    cmp #$FF
-    beq @bad ; -> Last-entered line had no line number
-@useLineNum:
-    lda TXTTAB
-    sta LOWTR
-    lda TXTTAB+1
-    sta LOWTR+1
-    lda #<PastLineNumP
-    ldy #>PastLineNumP
-    jsr TraverseLineLinks
-    bmi @bad
-    jsr DetokenizeLine
-    jmp ResetNormalMode
-@useLinePtr:
-    ; (If there's a "current line of BASIC", we don't have to check if
-    ;  we're "in BASIC")
-    lda CurBasicLinePtr
-    sta LOWTR
-    lda CurBasicLinePtr+1
-    sta LOWTR+1
-    ldy #1
-    ; Check high byte of "next line" link
-    lda (LOWTR),y
-    beq @bad ; -> no next line. BELL.
-    ; "Next" link is good, copy to LOWTR
-    sta @saveHack
-    dey
-    lda (LOWTR),y
-    sta LOWTR
-@saveHack = *+1
-    lda #$00 ; MODIFIED above
-    sta LOWTR+1
-    ; Now check the new "next" link.
-    ldy #1
-    lda (LOWTR),y
-    beq @bad ; Empty "next" link; we're past the last line (bad).
-    jsr DetokenizeLine
-    ; NOTE: repeats are _allowed_ (when successful).
+    jsr BasicLineForward
+    bcc @bad
     jmp ResetNormalMode
 @bad:
     jsr BELL
@@ -2384,6 +2309,120 @@ TraverseLineLinks:
 @fail:
     lda #$FF
 @finish:
+    rts
+;
+;; CARRY: 1 -> success, 0 -> failure
+BasicLineForward:
+    ; Go to next line of BASIC (if we're already in one)
+    lda CurBasicLinePtr+1
+    bne @useLinePtr ; -> we're in a line of BASIC right now, go to next
+    ; Are we "in BASIC"?
+    bit ViPromptIsBasic
+    bpl @bad ; -> Not in BASIC
+    lda LastEnteredLineNum
+    cmp #$FF
+    bne @useLineNum
+    lda LastEnteredLineNum
+    cmp #$FF
+    beq @bad ; -> Last-entered line had no line number
+@useLineNum:
+    lda TXTTAB
+    sta LOWTR
+    lda TXTTAB+1
+    sta LOWTR+1
+    lda #<PastLineNumP
+    ldy #>PastLineNumP
+    jsr TraverseLineLinks
+    bmi @bad
+    jsr DetokenizeLine
+    sec
+    rts
+@useLinePtr:
+    ; (If there's a "current line of BASIC", we don't have to check if
+    ;  we're "in BASIC")
+    lda CurBasicLinePtr
+    sta LOWTR
+    lda CurBasicLinePtr+1
+    sta LOWTR+1
+    ldy #1
+    ; Check high byte of "next line" link
+    lda (LOWTR),y
+    beq @bad ; -> no next line. BELL.
+    ; "Next" link is good, copy to LOWTR
+    sta @saveHack
+    dey
+    lda (LOWTR),y
+    sta LOWTR
+@saveHack = *+1
+    lda #$00 ; MODIFIED above
+    sta LOWTR+1
+    ; Now check the new "next" link.
+    ldy #1
+    lda (LOWTR),y
+    beq @bad ; Empty "next" link; we're past the last line (bad).
+    jsr DetokenizeLine
+@good:
+    sec
+    rts ;
+@bad:
+    clc
+    rts
+BasicLineBack:
+    lda CurBasicLinePtr+1
+    bne @useLinePtr
+    ;; Don't have a line pointer... but we may be able to use a line #
+    ; First, ensure we're in BASIC
+    bit ViPromptIsBasic
+    bpl @bad ; -> not in BASIC. Bail.
+    lda LastEnteredLineNum
+    cmp #$FF
+    bne @useLineNum
+    lda LastEnteredLineNum+1
+    cmp #$FF
+    beq @bad
+@useLineNum:
+    lda TXTTAB
+    sta LOWTR
+    lda TXTTAB+1
+    sta LOWTR+1
+    lda #<AtSameOrPrevLineNumP
+    ldy #>AtSameOrPrevLineNumP
+    jsr TraverseLineLinks
+    bpl @good
+    bmi @bad
+@useLinePtr:
+    ;; Okay, so our current line is the target.
+    ;; We have to start from the beginning of the program, following
+    ;; links, until we hit one that links tou ours.
+    ; First, check that the start-of-program isn't at (or past) our
+    ; line. If it is, then obviously we're not going to be backing up
+    ; any.
+    lda TXTTAB+1
+    cmp CurBasicLinePtr+1
+    bcc @notPast
+    ; >=. Is it =?
+    bne @bad ; -> high byte of prog start > our line. Bail.
+    lda TXTTAB
+    cmp CurBasicLinePtr
+    bcs @bad ; -> high byte is equal, low byte > our line. Bail.
+@notPast:
+    ; Load start-of-program into LOWTR
+    lda TXTTAB
+    sta LOWTR
+    lda TXTTAB+1
+    sta LOWTR+1
+    lda #<AtPrecedingLineLinkP
+    ldy #>AtPrecedingLineLinkP
+    jsr TraverseLineLinks
+    bmi @bad
+@good:
+    ; Congratulations! We're at the preceding line! Detokenize it
+    ; into buffer.
+    jsr DetokenizeLine ; this also sets as "current BASIC line"
+    sec
+    rts ;
+@bad:
+    clc
     rts
 DetokCurC: ; current char (screen code)
     .byte 0
