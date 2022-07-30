@@ -1122,7 +1122,28 @@ NrmMaybeCtrlP:
     cmp #$90 ; C-P
     bne @nf
     lda CurBasicLinePtr+1
+    bne @useLinePtr
+    ;; Don't have a line pointer... but we may be able to use a line #
+    ; First, ensure we're in BASIC
+    bit ViPromptIsBasic
+    bpl @bad ; -> not in BASIC. Bail.
+    lda LastEnteredLineNum
+    cmp #$FF
+    bne @useLineNum
+    lda LastEnteredLineNum+1
+    cmp #$FF
     beq @bad
+@useLineNum:
+    lda TXTTAB
+    sta LOWTR
+    lda TXTTAB+1
+    sta LOWTR+1
+    lda #<AtSameOrPrevLineNumP
+    ldy #>AtSameOrPrevLineNumP
+    jsr TraverseLineLinks
+    bpl @good
+    bmi @bad
+@useLinePtr:
     ;; Okay, so our current line is the target.
     ;; We have to start from the beginning of the program, following
     ;; links, until we hit one that links tou ours.
@@ -1143,11 +1164,11 @@ NrmMaybeCtrlP:
     sta LOWTR
     lda TXTTAB+1
     sta LOWTR+1
-    lda #>AtPrecedingLineLinkP
-    tay
     lda #<AtPrecedingLineLinkP
+    ldy #>AtPrecedingLineLinkP
     jsr TraverseLineLinks
     bmi @bad
+@good:
     ; Congratulations! We're at the preceding line! Detokenize it
     ; into buffer.
     jsr DetokenizeLine
@@ -2193,8 +2214,17 @@ MaybeRecordLineNumber:
     bcs @no ; -> it was spaces through to the end (maybe beyond?) of the line
     jsr GetIsDigit
     bcc @no
-    ; So yes we have a number; convert it!
+    ;; So yes we have a number; convert it!
+    ; set up GETPTR
+    txa
+    clc
+    adc #<IN
+    sta TXTPTR
+    lda #>IN
+    adc #0
+    sta TXTPTR+1
     jsr LineNumberToLow
+    jsr CHRGOT
     jsr LINGET
     jsr LineNumberToHigh
     ; ...and save it.
@@ -2208,6 +2238,53 @@ MaybeRecordLineNumber:
     lda #$FF
     sta LastEnteredLineNum
     sta LastEnteredLineNum+1
+    rts
+AtSameOrPrevLineNumP:
+    ;; First check: are we at the line number?
+    ldy #3
+    lda LastEnteredLineNum+1
+    cmp (LOWTR),y
+    beq @ckLo
+    bcs @ok
+@ckLo:
+    dey
+    lda LastEnteredLineNum
+    cmp (LOWTR),y
+    beq @yes ; we're AT the line number
+    bcc @no  ; we're PAST the line number
+    ; If we get here, we're still lower than the line number.
+    ; Is it the next one?
+@ok:
+    ;; Not at; maybe we'e immediately prior?
+    ; Save the "next" link in FAC
+    ldy #0
+    lda (LOWTR),y
+    sta FAC
+    iny
+    lda (LOWTR),y
+    sta FAC+1
+    ldy #1
+    lda (FAC),y
+    beq @yes            ; -> There's no next line. That counts as "more".
+    ; compare "next" line #
+    ldy #3
+    lda (FAC),y
+    cmp LastEnteredLineNum+1
+    bcc @cont ; -> high byte is less
+    bne @yes  ; -> high byte is higher, WE'RE the line
+    ; High bytes are equal; check low
+    dey
+    lda LastEnteredLineNum
+    cmp (FAC),y
+    bcs @cont
+@yes:
+    lda #$01
+    rts ;
+@cont:
+    lda #0
+    rts ;
+@no:
+    lda #$FF
     rts
 AtPrecedingLineLinkP:
     ; Check the high byte of the "next" link
