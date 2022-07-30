@@ -747,6 +747,8 @@ DoCR:
     lda #>CheckForGetline
     sta InputRedirFn+1
     ;
+    jsr MaybeRecordLineNumber
+    ;
     ldx LineLength
     lda #$8D ; CR
     sta IN,x ; make damn sure we're locked off with a CR
@@ -1030,7 +1032,7 @@ NormalMode:
     ; in our normal mode, lowercase should be converted to upper.
     cmp #$E0    ; < 'a' ?
     bcc @nocvt  ; -> no
-    cmp #$FA    ; >= '{'  
+    cmp #$FA    ; >= '{'
     bcs @nocvt
     sec
     sbc #$20
@@ -1141,41 +1143,15 @@ NrmMaybeCtrlP:
     sta LOWTR
     lda TXTTAB+1
     sta LOWTR+1
-@lp:
-    ; Check the high byte of the "next" link
-    ldy #1
-    lda (LOWTR),y
-    beq @bad   ; -> We are PAST the LAST line. This shouldn't happen,
-               ;    since CurBasicLin is supposed to be a known-good
-               ;    pointer... just bail.
-    cmp CurBasicLinePtr+1
-    bcc @lowerThanTarget
-    bne @bad   ; -> "Next" is PAST our target line. This shouldn't happen,
-               ;    since CurBasicLin is supposed to be a known-good
-               ;    pointer... just bail.
-    ; High byte equal to ours; check low byte
-    dey
-    lda (LOWTR),y
-    cmp CurBasicLinePtr
-    bcc @lowerThanTarget
-    bne @bad   ; -> "Next" is PAST our target line. This shouldn't happen,
-               ;    since CurBasicLin is supposed to be a known-good
-               ;    pointer... just bail.
+    lda #>AtPrecedingLineLinkP
+    tay
+    lda #<AtPrecedingLineLinkP
+    jsr TraverseLineLinks
+    bmi @bad
     ; Congratulations! We're at the preceding line! Detokenize it
     ; into buffer.
     jsr DetokenizeLine
     jmp ResetNormalMode
-@lowerThanTarget:
-    ; Follow "next" link and try again
-    ldy #0
-    lda (LOWTR),y
-    pha
-        iny
-        lda (LOWTR),y
-        sta LOWTR+1
-    pla
-    sta LOWTR
-    jmp @lp
 @bad:
     jsr BELL
     ; don't repeat if we hit the beginning, so we don't spam BELLs.
@@ -2199,6 +2175,99 @@ DetokMaybeInsertSpace:
     inx
 @no:
     rts
+MaybeRecordLineNumber:
+    bit ViPromptIsBasic
+    bpl @no ; -> Not in BASIC, so nothing to do.
+    ldx #0 ; it's okay to stomp x, we only do this right before
+           ; submitting the line to the caller anyway, so we'll set
+           ; it to the end of the buffer after this routine exits.
+    ; Skip any leading spaces
+@skipSp:
+    lda IN,x
+    cmp #$A0
+    bne @spaceSkipped
+    inx
+    bne @skipSp
+@spaceSkipped:
+    cpx LineLength
+    bcs @no ; -> it was spaces through to the end (maybe beyond?) of the line
+    jsr GetIsDigit
+    bcc @no
+    ; So yes we have a number; convert it!
+    jsr LineNumberToLow
+    jsr LINGET
+    jsr LineNumberToHigh
+    ; ...and save it.
+    lda LINNUM
+    sta LastEnteredLineNum
+    lda LINNUM+1
+    sta LastEnteredLineNum+1
+    rts ;
+@no:
+    ; record an indication that no line number was entered
+    lda #$FF
+    sta LastEnteredLineNum
+    sta LastEnteredLineNum+1
+    rts
+AtPrecedingLineLinkP:
+    ; Check the high byte of the "next" link
+    ldy #1
+    lda (LOWTR),y
+    cmp CurBasicLinePtr+1
+    bcc @lowerThanTarget
+    bne @fail   ; -> "Next" is PAST our target line. This shouldn't happen,
+                ;    since CurBasicLin is supposed to be a known-good
+                ;    pointer... just bail.
+    ; High byte equal to ours; check low byte
+    dey
+    lda (LOWTR),y
+    cmp CurBasicLinePtr
+    bcc @lowerThanTarget
+    bne @fail   ; -> "Next" is PAST our target line. This shouldn't happen,
+                ;    since CurBasicLin is supposed to be a known-good
+                ;    pointer... just bail.
+    lda #$01    ; SUCCESS!
+    rts ;
+@fail:
+    lda #$FF    ; FAIL!
+    rts ;
+@lowerThanTarget:
+    lda #$00    ; KEEP GOING
+    rts
+; TraverseLineLinks
+;   Returns:
+;       Plus  = success
+;       Minus = fail
+;   Expects as argument a routine that returns:
+;       Plus  = success
+;       Zero  = next line
+;       Minus = fail
+;   when called. Routine is specified via low byte in A, high byte in Y.
+;
+TraverseLineLinks:
+    sty @pred+1
+    sta @pred
+@lp:
+    ldy #1
+    lda (LOWTR),y
+    beq @fail    ; -> We are PAST the LAST line. That's automatic failure.
+@pred = * + 1
+    jsr $FFFF ; OVERWRITTEN
+    bne @finish
+    ; Follow "next" link and try again
+    ldy #0
+    lda (LOWTR),y
+    pha
+        iny
+        lda (LOWTR),y
+        sta LOWTR+1
+    pla
+    sta LOWTR
+    jmp @lp
+@fail:
+    lda #$FF
+@finish:
+    rts
 DetokCurC: ; current char (screen code)
     .byte 0
 DetokCurT: ; last-emitted tok
@@ -2209,6 +2278,8 @@ DetokLastT: ; last-emitted tok
     .byte 0
 CurBasicLinePtr:
     .word 0
+LastEnteredLineNum:
+    .word $FFFF
 RepeatCounter:
     .byte 0
 NrmLastKey:
