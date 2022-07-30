@@ -1503,8 +1503,8 @@ TryGoRightOne:
 @rts:
     rts
 GetIsWordOrNum:
-    cmp #$AD ; dash (-) ?
-    beq GiwcRts
+    ;cmp #$AD ; dash (-) ?
+    ;beq GiwcRts
     cmp #$AE ; period (.) ?
     beq GiwcRts
 GetIsWordChar:
@@ -2144,7 +2144,21 @@ DetokMaybeInsertSpace:
     cmp #$A0
     beq @no ; -> Last char was already a space. Bail.
     jsr GetIsWordChar
-    bcc @no ; -> No space. Never need a space after punctuation.
+    bcs @lastWasWord ; -> last was not punctuation
+    lda DetokCurC
+    jsr GetIsWordChar
+    bcc @no ; -> No space between two punct chars
+    ; If we're here, it's a word char after a punctuation mark.
+    lda DetokLastC
+    cmp #$A9 ; ')'?
+    beq @yes ; -> always space word chars after right-paren
+    cmp #$A2 ; double-quote (") ?
+    bne @no ; -> not ) or "   - no space
+    ; yes double-quote. Space if cur is a token (always??), no spc else
+    lda DetokCurT
+    bmi @yes
+    bpl @no
+@lastWasWord:
     lda DetokLastT
     ; No matter what, never emit a space after REM. One will be included
     ;  if desired.
@@ -2158,6 +2172,8 @@ DetokMaybeInsertSpace:
     bcs @yes
     ; If we're here, preceding token ended with word char, and
     ;  current char is non-word
+    bit DetokLastT
+    bpl @no ; if it's a NON-TOKEN word char preceding punctuation, no space.
     lda DetokCurC
     cmp #$BA ; colon (:) ?
     beq @no ; colons never need a space.
