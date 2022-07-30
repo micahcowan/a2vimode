@@ -1171,7 +1171,7 @@ NrmMaybeCtrlP:
 @good:
     ; Congratulations! We're at the preceding line! Detokenize it
     ; into buffer.
-    jsr DetokenizeLine
+    jsr DetokenizeLine ; this also sets as "current BASIC line"
     jmp ResetNormalMode
 @bad:
     jsr BELL
@@ -1185,7 +1185,28 @@ NrmMaybeCtrlN:
     bne @nf
     ; Go to next line of BASIC (if we're already in one)
     lda CurBasicLinePtr+1
-    beq @bad ; -> we're not in a line of BASIC right now. BELL.
+    bne @useLinePtr ; -> we're in a line of BASIC right now, go to next
+    ; Are we "in BASIC"?
+    bit ViPromptIsBasic
+    bpl @bad ; -> Not in BASIC
+    lda LastEnteredLineNum
+    cmp #$FF
+    bne @useLineNum
+    lda LastEnteredLineNum
+    cmp #$FF
+    beq @bad ; -> Last-entered line had no line number
+@useLineNum:
+    lda TXTTAB
+    sta LOWTR
+    lda TXTTAB+1
+    sta LOWTR+1
+    lda #<PastLineNumP
+    ldy #>PastLineNumP
+    jsr TraverseLineLinks
+    bmi @bad
+    jsr DetokenizeLine
+    jmp ResetNormalMode
+@useLinePtr:
     ; (If there's a "current line of BASIC", we don't have to check if
     ;  we're "in BASIC")
     lda CurBasicLinePtr
@@ -2238,6 +2259,25 @@ MaybeRecordLineNumber:
     lda #$FF
     sta LastEnteredLineNum
     sta LastEnteredLineNum+1
+    rts
+PastLineNumP:
+    ;; Easy: we just stop at the first line number
+    ;;  whose value is greater than the last-entered one
+    ldy #3
+    lda LastEnteredLineNum+1
+    cmp (LOWTR),y
+    bcc @succ
+    bne @cont
+    ; High bytes eq. Low bytes?
+    dey
+    lda (LOWTR),y
+    cmp LastEnteredLineNum
+    bcs @succ
+@cont:
+    lda #$0
+    rts ;
+@succ:
+    lda #$01
     rts
 AtSameOrPrevLineNumP:
     ;; First check: are we at the line number?
