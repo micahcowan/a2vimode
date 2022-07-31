@@ -808,14 +808,15 @@ EmitYCntSpaces:
 MakeYRegRoom:
     stx @saveX
     sty @finalY
-    lda kMaxLength
+    lda #kMaxLength
     sec
-    sbc @saveX
-    beq @end
-    cmp @finalY ; kMaxLength - Xpos >= char count?
+    sbc LineLength
+    cmp @finalY ; kMaxLength - LineLength >= char count?
     bcs @plentyOfRoom
     ; insufficent room; alter the count -> (kMaxLength - X) then.
     sta @finalY
+    cmp #$00
+    beq @end
 @plentyOfRoom:
     ldx LineLength
     txa
@@ -972,12 +973,6 @@ Backspace:
 EnterNormalMode:
     lda #PromptNormalChar ; '-'
     jsr ChangePrompt
-    lda AppendModeFLag
-    bpl @appFlagUnset
-    lda #$0
-    sta AppendModeFLag
-    jsr TryGoLeftOne
-@appFlagUnset:
     ; We just entered; make sure we're not capturing
     lda #$0
     sta CaptureFlag
@@ -1005,19 +1000,25 @@ EnterNormalMode:
     ; TODO would it be more efficient to make all the room/copy the tail
     ;  for all the inserts at once? ...Yes, yes it would.
     sty @saveY
-    stx @stopY
 @charCount = * + 1
     ldy #$00 ; OVERWRITTEN
     jsr MakeYRegRoom
     cpy @charCount
     beq @plentyOfRoom
 @outOfRoom:
+    jsr BELL ; signal to USER that it didn't quite fit
+    cpy #0
+    beq @doneRpt
     sty @charCount ; store the ammended char count
     lda #1
     sta RepeatCounter ; ensure no more repeats; no room left
 @plentyOfRoom:
 @saveY = * + 1
-    ldy #$00 ; OVERWRITTEN
+    lda #$00 ; OVERWRITTEN
+    tay
+    clc
+    adc @charCount
+    sta @stopY
 @innerLoop:
     lda IN,y
     sta IN,x
@@ -1046,6 +1047,16 @@ EnterNormalMode:
     sta RepeatCounter
     lda #$FF
     sta InsertEntryLoc
+    bit AppendModeFLag
+    ; Now we can check for append-mode flag;
+    ;  we couldn't do that before, as moving left would have messed
+    ;  up the count of how many characters to copy for a possible
+    ;  repeated-insert
+    bpl @appFlagUnset
+    lda #$0
+    sta AppendModeFLag
+    jsr TryGoLeftOne
+@appFlagUnset:
     ; fall through to ResetNormalMode
 ResetNormalMode:
     ;; Check for an active repeat count
