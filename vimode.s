@@ -2354,6 +2354,7 @@ PastLineNumP:
     dey
     lda (LOWTR),y
     cmp LastEnteredLineNum
+    beq @cont
     bcs @succ
 @cont:
     lda #$0
