@@ -801,12 +801,48 @@ EmitYCntSpaces:
     lda #$A0
     bne EmitYCntAReg
     ; ^ eventual RTS.
+; MakeYRegRoom
+;   makes Y chars' room at current X position, by copying things in line
+;   on return, Y-reg holds ACTUAL amount of room made
+;   DOESN'T UPDATE THE SCREEN, DO THAT YOURSELF
+MakeYRegRoom:
+    stx @saveX
+    sty @finalY
+    lda kMaxLength
+    sec
+    sbc @saveX
+    beq @end
+    cmp @finalY ; kMaxLength - Xpos >= char count?
+    bcs @plentyOfRoom
+    ; insufficent room; alter the count -> (kMaxLength - X) then.
+    sta @finalY
+@plentyOfRoom:
+    ldx LineLength
+    txa
+    clc
+    adc @finalY
+    sta LineLength
+    tay
+@copy:
+    lda IN,x
+    sta IN,y
+    dey
+    dex
+    cpx @saveX
+    bcs @copy
+@end:
+@finalY = * + 1
+    ldy #$00 ; OVERWRITTEN
+@saveX = * + 1
+    ldx #$00 ; OVERWRITTEN
+    rts
 TryInsertChar:
     ; Check to see if there's room for the char
     sta SaveA
     lda LineLength
     cmp #kMaxLength
-    bcs NoRoomRight ; No more space left!
+    bcc InsertOk
+    jmp NoRoomRight ; No more space left!
 
     ; If we're here we are definitely inserting
 InsertOk:
@@ -958,40 +994,50 @@ EnterNormalMode:
     sec
     sbc InsertEntryLoc
     sta @charCount
+    ldy InsertEntryLoc
 @rptIns:
     ;;
     ;; Start of outer repeat loop for insert/appen
     ;;
     dec RepeatCounter ; FIRST repeat was already done by user.
     beq @doneRpt
-    ; Subtract: kMaxLength - X-reg
-    txa
-    ;  (Reverse sign of X-reg
-    eor #$FF
-    sec ; need to add one to EOR to make negative
-    adc kMaxLength
-    beq @doneRpt ; COMPLETELY out of space
-    cmp @charCount ; kMaxLength - X >= charCount?
-    bcs @plentyOfRoom
+    ;; Make room for the next insert
+    ; TODO would it be more efficient to make all the room/copy the tail
+    ;  for all the inserts at once? ...Yes, yes it would.
+    sty @saveY
+    stx @stopY
+@charCount = * + 1
+    ldy #$00 ; OVERWRITTEN
+    jsr MakeYRegRoom
+    cpy @charCount
+    beq @plentyOfRoom
 @outOfRoom:
-    sta @charCount ; store the ammended char count
+    sty @charCount ; store the ammended char count
+    lda #1
+    sta RepeatCounter ; ensure no more repeats; no room left
 @plentyOfRoom:
-    ldy #0
+@saveY = * + 1
+    ldy #$00 ; OVERWRITTEN
 @innerLoop:
-@exitPos = * + 1
-    lda IN,y ; LOW-BYTE (ONLY) OVERWRITTEN
+    lda IN,y
     sta IN,x
     inx
     iny
-@charCount = * + 1
+@stopY = * + 1
     cpy #$00 ; OVERWRITTEN
     bne @innerLoop
     beq @rptIns
 @doneRpt:
     stx @finalX
-    ldx @exitPos
+@exitPos = * + 1
+    ldx #$00 ; OVERWRITTEN
     jsr PrintRestOfLine
-    ; XXX Need to back up again
+    ; Need to back up again
+    lda LineLength
+    sec
+    sbc @finalX
+    tay
+    jsr EmitYCntBsp
 @finalX = * + 1
     ldx #$00 ; OVERWRITTEN
     ; fall through
