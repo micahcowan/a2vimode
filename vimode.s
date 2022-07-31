@@ -540,13 +540,15 @@ InitViModeAndGetStarted:
     rts
 
 ViModeGetline:
+    ; Call to here if you want an explicit call to _our_ GETLN.
+    ; Print the prompt...
+    ;
     ; Reset whether we're "in BASIC". Only do this when directly
     ;  called by a user. XXX we should have a jump entry for here
     lda #$00
     sta ViPromptIsBasic
 ViModeGetlineInternal:
-    ; Call to here if you want an explicit call to _our_ GETLN.
-    ; Print the prompt...
+    ; Used internally, so as not to reset whether we're in BASIC.
     lda PROMPT
     jsr COUT
     ; fall through to general initialization, and then on to insert-mode
@@ -557,6 +559,8 @@ ViModeEntry:
     lda #$00
     sta CurBasicLinePtr
     sta CurBasicLinePtr+1
+    ; Clear any "repeat count"
+    sta RepeatCounter
 InitViMode:
     ; Install direct keyin fn (no GETLN check)
     lda #<RealInput
@@ -941,8 +945,61 @@ EnterNormalMode:
     ; We just entered; make sure we're not capturing
     lda #$0
     sta CaptureFlag
-    ; ...or repeating
+    ; Should we repeat the last insert/append?
+    lda RepeatCounter
+    beq @noRptIns
+    cpx InsertEntryLoc
+    bcc @noRptIns
+    beq @noRptIns
+    ; Yes, we're repeating the last insert/append - by copying
+    ; whatever's between prev cursor position and new one, N times
+    stx @exitPos ; XXX
+    txa
+    sec
+    sbc InsertEntryLoc
+    sta @charCount
+@rptIns:
+    ;;
+    ;; Start of outer repeat loop for insert/appen
+    ;;
+    dec RepeatCounter ; FIRST repeat was already done by user.
+    beq @doneRpt
+    ; Subtract: kMaxLength - X-reg
+    txa
+    ;  (Reverse sign of X-reg
+    eor #$FF
+    sec ; need to add one to EOR to make negative
+    adc kMaxLength
+    beq @doneRpt ; COMPLETELY out of space
+    cmp @charCount ; kMaxLength - X >= charCount?
+    bcs @plentyOfRoom
+@outOfRoom:
+    sta @charCount ; store the ammended char count
+@plentyOfRoom:
+    ldy #0
+@innerLoop:
+@exitPos = * + 1
+    lda IN,y ; LOW-BYTE (ONLY) OVERWRITTEN
+    sta IN,x
+    inx
+    iny
+@charCount = * + 1
+    cpy #$00 ; OVERWRITTEN
+    bne @innerLoop
+    beq @rptIns
+@doneRpt:
+    stx @finalX
+    ldx @exitPos
+    jsr PrintRestOfLine
+    ; XXX Need to back up again
+@finalX = * + 1
+    ldx #$00 ; OVERWRITTEN
+    ; fall through
+@noRptIns:
+    lda #0
     sta RepeatCounter
+    lda #$FF
+    sta InsertEntryLoc
     ; fall through to ResetNormalMode
 ResetNormalMode:
     ;; Check for an active repeat count
@@ -1069,6 +1126,7 @@ NrmMaybeI:
     ; 'I'? fall through
 EnterInsertMode:
     jsr RestorePrompt
+    stx InsertEntryLoc
     jmp InsertMode
 NrmMaybeIOut:
 ;
@@ -1247,6 +1305,7 @@ NrmMaybeLineKill:
     jsr BackspaceToStart ; Backspace to beginning
     ldx #$0
     stx CapturePos ; Overwrite "original position" to beginning
+    stx RepeatCounter ; Can't "repeat" a line-kill operation
     ldx LineLength ; And set our current position to the end.
     jmp ResetNormalMode
 @nf:
@@ -2501,6 +2560,8 @@ LineLength:
     .byte 0
 TmpWord:
     .word 0
+InsertEntryLoc:
+    .byte 0
 AppendModeFLag:
     .byte 0
 AmSearchingNums:
