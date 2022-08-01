@@ -2011,7 +2011,7 @@ MyRDKEY:
     ; screen (even though, by setting X-reg to the end, we ensure the
     ; stored command is safe). Not much we can do about that, really,
     ; since it happens before we're even allowed to know about it.
-    stx SaveX
+    stx @saveX
     ldx LineLength
     jsr RDKEY
     pha
@@ -2021,7 +2021,8 @@ MyRDKEY:
     ; having played any tricks.
     pla
 @out:
-    ldx SaveX ; (not needed if we fell through from above)
+@saveX = * + 1
+    ldx #$00 ; OVERWRITTEN
     rts
 @nonzero:
     pla
