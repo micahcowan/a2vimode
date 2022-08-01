@@ -561,7 +561,9 @@ ViModeEntry:
     sta CurBasicLinePtr+1
     ; Clear any "repeat count"
     sta RepeatCounter
-InitViMode:
+    ; Or undo buffer
+    sta UndoLineLength
+    sta UndoCursorPos
     ; Install direct keyin fn (no GETLN check)
     lda #<RealInput
     sta InputRedirFn
@@ -1094,6 +1096,8 @@ ResetNormalMode:
     txa                ;  and move it to Y-reg
     tay
     ldx CapturePos ; Restore pre-mov location to X-reg
+    jsr SaveUndoLine ; Save point (into undo) before we actually
+                     ;  perform the change
     cpx PostCapturePos
     bcc @calc ; -> CapturePos < PostCapturePos, no initial backspacing needed
     ; Deleting backwards: first backspace to where the mvmt landed us
@@ -1186,6 +1190,17 @@ NrmCmdExec:
     jmp NrmSafeCommands     ; -> yes, skip modifying commands
 ; START of line-modifying/not-just-movement commands
 NrmUnsafeCommands:
+NrmMaybeUndo:
+    cmp #$D5 ; 'U'
+    bne @nf
+    ; Kill any repeat
+    lda #$0
+    sta RepeatCounter
+    jsr SwapUndoLine   ; fill line buffer with undo contents, and
+                       ;  undo contents with line buffer
+                       ;  (next U reverses this one)
+    jmp ResetNormalMode
+@nf:
 NrmMaybeI:
     cmp #$C9 ; 'I'
     bne NrmMaybeIOut
@@ -1519,6 +1534,8 @@ NormalUnrecognized:
     sta RepeatCounter
     ;jsr BELL
     jmp ResetNormalMode
+;;; End of Normal Mode Keys ;;;
+
 CaptureFlag:
     .byte $00
 CapturePos:
@@ -1527,6 +1544,7 @@ PostCapturePos:
     .byte $00
 PosDiff:
     .byte $00 ; the positive positional difference in a movement
+;
 RestorePrompt:
     lda PROMPT
     ; fall through
@@ -2599,6 +2617,73 @@ BasicLineBack:
 @bad:
     clc
     rts
+SwapUndoLine:
+    txa
+    pha
+        ldx #0
+@lp:
+        lda UndoBuffer,x
+        tay
+        lda IN,x
+        sta UndoBuffer,x
+        tya
+        sta IN,x
+        inx
+        bne @lp
+        ;
+        lda LineLength
+        tay
+        lda UndoLineLength
+        sta LineLength
+        tya
+        sta UndoLineLength
+        ldx UndoCursorPos
+    pla
+    sta UndoCursorPos
+    stx @saveNewX
+    ;;;; Now redraw the line
+    ;; First, back up to prompt
+    ldy UndoCursorPos ; was current position
+    jsr EmitYCntBsp
+    ;; Draw new line
+    ldx #0
+    jsr PrintRestOfLine
+    ;; New line shorter than old? Fill out with spaces
+    lda UndoLineLength ; was ours
+    cmp LineLength
+    bcc @noEraseTail
+    ; New line's shorter
+    sec
+    sbc LineLength
+    pha
+        tay
+        jsr EmitYCntSpaces
+    pla
+    tay
+    jsr EmitYCntBsp
+@noEraseTail:
+    ;; Back up from end of line to cursor position
+    lda LineLength
+    sec
+@saveNewX = * + 1
+    sbc #$00 ; OVERWRITTEN
+    tay
+    jsr EmitYCntBsp
+    ldx @saveNewX
+    rts
+SaveUndoLine:
+    lda LineLength
+    sta UndoLineLength
+    stx UndoCursorPos
+    ldx #0
+@lp:
+    lda IN,x
+    sta UndoBuffer,x
+    inx
+    cpx UndoLineLength
+    bne @lp
+    ldx UndoCursorPos
+    rts
 SaveTypedLine:
     lda LineLength
     sta LastLineLength
@@ -2650,6 +2735,10 @@ TypeLastLine:
     rts
 LastLineLength:
     .byte 0
+UndoLineLength:
+    .byte 0
+UndoCursorPos:
+    .byte 0
 NoSpaces:
     .byte 0
 DetokCurC: ; current char (screen code)
@@ -2700,6 +2789,6 @@ ViPromptIsBasic:
 ; The generated version string
 .include "version.inc"
 
-.align 256
-LastLineBuffer:
-
+;; Declare next couple of pages as buffers
+LastLineBuffer = (.hibyte(* - 1) + 1) * $100
+UndoBuffer = LastLineBuffer + $100
