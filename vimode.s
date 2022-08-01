@@ -1392,18 +1392,40 @@ NumForward:
 @skipPr:
     jmp ResetNormalMode
 NumForwardSkip:
+NrmMaybeFOrT:
+    cmp #$C6 ; 'F'
+    beq @doIt
+    cmp #$D4 ; 'T'
+    bne NrmMaybeFOrTOut
+@doIt:
+    lda #$00
+    sta AmSearchingNums
+    jsr MyRDKEY ; get the key to search forward to
+    sta SearchChar
+    lda NrmLastKey
+    sta SearchStyle
+DoForwardSearchChar:
+    stx SaveA
+    jsr ForwardSearchChar
+    bit CaptureFlag
+    bmi @skipPr
+    jsr PrintForwardMoveFromSaveA
+@skipPr:
+    jmp ResetNormalMode
+NrmMaybeFOrTOut:
 NrmMaybeSemicolon:
     cmp #$BB ; semicolon (;) ?
     bne @nf
     bit AmSearchingNums
     bmi NumForward
-    jmp ResetNormalMode
+    bpl DoForwardSearchChar
 @nf:
 NrmMaybeComma:
     cmp #$AC ; ','
     bne @nf
     bit AmSearchingNums
     bpl @notSrchNums
+    ;; Searching for starts-of-numbers
     stx @origPos
     jsr MoveBackNumber
     bit CaptureFlag
@@ -1418,7 +1440,22 @@ NrmMaybeComma:
     tay
     jsr EmitYCntBsp
 @skipPr:
+    jmp ResetNormalMode
 @notSrchNums:
+    stx @saveX
+    jsr BackSearchChar
+    bit CaptureFlag
+    bmi @skipPr2
+    ; update display
+    stx @newX
+@saveX = * + 1
+    lda #$00 ; OVERWRITTEN
+    sec
+@newX = * + 1
+    sbc #$00 ; OVERWRITTEN
+    tay
+    jsr EmitYCntBsp
+@skipPr2:
     jmp ResetNormalMode
 @nf:
 ;; Check for "CC" and "DD"
@@ -1849,6 +1886,71 @@ PrintForwardMoveFromSaveA:
     pla
     tax
     rts
+AdjustDisplayFromAToNewX:
+    sta @saveA
+    txa
+@saveA = * + 1
+    cmp #$00 ; OVERWRITTEN
+    beq @rt ; -> nothing to do; exit
+    bcc @backward ; -> New position is behind old
+    ; Here: old position is behind new
+@forward:
+    ; sec  - already set
+    sbc @saveA
+@backward:
+@rt:
+    rts
+BackSearchChar:
+    stx @saveX
+    lda SearchStyle
+@lp:
+    dex ; (first iter: step back past any char we may have been atop)
+    cpx #$FF ; underflown
+    beq @fail
+    lda IN,x
+    cmp SearchChar
+    bne @lp
+    ; success!
+    lda SearchStyle
+    cmp #$D4 ; 'T'
+    bne @rt
+    dex ; back up one for 'T'. We know it's safe to do, because
+        ;  if we got this far, we already advanced twice.
+@rt:
+    rts
+@fail:
+@saveX = * + 1
+    ldx #$00 ; OVERWRITTEN
+    rts
+ForwardSearchChar:
+    stx @saveX
+    lda SearchStyle
+    cmp #$D4 ; 'T'
+    bne @lp
+    inx ; if we're a "T" search, step forward "onto" any search char
+        ; we may have already been before
+    cpx LineLength
+    beq @fail
+@lp:
+    inx ; (first iter: then step forward past any char we may have
+        ;  been atop)
+    cpx LineLength
+    beq @fail
+    lda IN,x
+    cmp SearchChar
+    bne @lp
+    ; success!
+    lda SearchStyle
+    cmp #$D4 ; 'T'
+    bne @rt
+    dex ; back up one for 'T'. We know it's safe to do, because
+        ;  if we got this far, we already advanced twice.
+@rt:
+    rts
+@fail:
+@saveX = * + 1
+    ldx #$00 ; OVERWRITTEN
+    rts
 ReadWait:
     jsr MyRDKEY
     sec
@@ -1866,7 +1968,6 @@ ReadWait:
     bne @lp
     pla
     rts
-.if 1
 MyRDKEY:
     ; ProDOS is a silly bully, and plays games with us that it
     ; shouldn't.
@@ -1932,25 +2033,6 @@ MyRDKEY:
     txs
     jsr CROUT ; Send a CR, as GETLN would
     jmp ViModeGetlineInternal
-.else
-MyRDKEY:
-    lda $38
-    pha
-    lda $39
-    pha
-        lda #<KEYIN
-        sta $38
-        lda #>KEYIN
-        sta $39
-        jsr RDKEY
-        sta SaveA
-    pla
-    sta $39
-    pla
-    sta $38
-    lda SaveA
-    rts
-.endif
 ShowVersion:
     stx @mySaveX
     ;; Erase the visible line
@@ -2828,6 +2910,8 @@ AppendModeFLag:
 AmSearchingNums:
     .byte 0
 SearchChar:
+    .byte 0
+SearchStyle:
     .byte 0
 ViPromptIsBasic:
     .byte 0
