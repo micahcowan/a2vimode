@@ -510,8 +510,9 @@ StSvCH:.byte 0
     ; Then we print the stack info we just rejected, and check
     ; keypresses again.
     lda StatusBarOn
-    bpl @done
+    bpl :+
     jsr PrintStackTraceFailed
+:
     lda SaveA
     ldx SaveX
     ldy SaveY
@@ -566,10 +567,10 @@ ViModeEntry:
     sta UndoCursorPos
     sta UndoSavePending
     ; Install direct keyin fn (no GETLN check)
-    lda #<RealInput
-    sta InputRedirFn
-    lda #>RealInput
-    sta InputRedirFn+1
+    ;lda #<RealInput
+    ;sta InputRedirFn
+    ;lda #>RealInput
+    ;sta InputRedirFn+1
     ; Save our stack position - we need it to help dodge a dirty trick
     ; from ProDOS (see comments for MyRDKEY).
     tsx
@@ -778,10 +779,10 @@ DoCR:
     ; below - believe it or not, DOS hijacks the stack immediately
     ; after and never lets us return. Not all the time, but for
     ; some DOS commands: at least "LOAD".
-    lda #<CheckForGetline
-    sta InputRedirFn
-    lda #>CheckForGetline
-    sta InputRedirFn+1
+    ;lda #<CheckForGetline
+    ;sta InputRedirFn
+    ;lda #>CheckForGetline
+    ;sta InputRedirFn+1
     ;
     jsr MaybeRecordLineNumber
     ;
