@@ -1219,16 +1219,13 @@ NrmMaybeI:
     cmp #$C9 ; 'I'
     bne NrmMaybeIOut
     ; 'I'? fall through
+SaveAndEnterInsertMode:
+    ; 'A' and 'I' go here; 'C' and 'S' go straight to EnterInsertMode
+    lda #$FF
+    sta UndoSavePending ; save for undo if and only if something's inserted
 EnterInsertMode:
     jsr RestorePrompt
     stx InsertEntryLoc
-    lda NrmLastKey
-    cmp #$D3 ; 'S'
-    beq @skipUndo ; -> we got here from a "S" substitute command
-                  ;     it already handled the save point
-    lda #$FF
-    sta UndoSavePending ; save for undo if and only if something's inserted
-@skipUndo:
     jmp InsertMode
 NrmMaybeIOut:
 ;
@@ -1241,7 +1238,7 @@ NrmMaybeA:
     sta AppendModeFLag ; so exiting insert mode drops cursor back one char
     jsr TryGoRightOne
 @atEnd:
-    jmp EnterInsertMode
+    jmp SaveAndEnterInsertMode
 @nf:
 NrmMaybeCtrlL:
     cmp #$8C ; C-L ?
