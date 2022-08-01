@@ -1924,6 +1924,8 @@ BackSearchChar:
     rts
 ForwardSearchChar:
     stx @saveX
+    cpx LineLength
+    beq @fail
     lda SearchStyle
     cmp #$D4 ; 'T'
     bne @lp
@@ -1940,6 +1942,14 @@ ForwardSearchChar:
     cmp SearchChar
     bne @lp
     ; success!
+    lda CaptureFlag
+    bpl :+
+    ; during capture, we need to advance cursor by one
+    ;  to get the delete effect we expect. We know this is safe,
+    ;  by the way, because if we were already at LineLength
+    ;  we couldn't be here.
+    inx
+:
     lda SearchStyle
     cmp #$D4 ; 'T'
     bne @rt
