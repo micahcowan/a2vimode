@@ -666,6 +666,8 @@ MaybeCtrlBackslash:
 MaybeCtrlP:
     cmp #$90 ; C-P
     bne @nf
+    lda #0
+    sta RepeatCounter
     jsr BasicLineBack
     bcc @bad
     jmp EnterNormalMode ; land in normal mode, for e.g. #
@@ -676,6 +678,8 @@ MaybeCtrlP:
 MaybeCtrlN:
     cmp #$8E ; C-N
     bne @nf
+    lda #0
+    sta RepeatCounter
     jsr BasicLineForward
     bcc @bad
     jmp EnterNormalMode ; land in normal mode, for e.g. #
@@ -686,6 +690,8 @@ MaybeCtrlN:
 MaybeCtrlG:
     cmp #$87 ; C-G
     bne @nf
+    lda #0
+    sta RepeatCounter
     ; Fetch a line of BASIC (_if_ we're a BASIC prompt)
     ;  from the number at the start of the buffer
     jsr MaybeFetchBasicLine
@@ -697,8 +703,10 @@ MaybeCtrlG:
 MaybeCtrlL:
     cmp #$8C ; C-L ?
     bne @nf
-    jsr ReadWait
-    jmp InsertMode
+    jsr TypeLastLine
+    lda #0
+    sta RepeatCounter
+    jmp EnterNormalMode
 @nf:
 MaybeEsc:
     cmp #$89 ; Tab? (workaround for ESC, in 80-col mode)
@@ -761,6 +769,7 @@ NoRoomRight:
     jmp InsertMode
 DoCR:
     jsr PrintRestOfLine ; jump to end
+    jsr SaveTypedLine
     ; Restore the check for GETLN
     ; NOTE: this HAS to happen before sending out the CR
     ; below - believe it or not, DOS hijacks the stack immediately
@@ -1197,6 +1206,14 @@ NrmMaybeA:
     jsr TryGoRightOne
 @atEnd:
     jmp EnterInsertMode
+@nf:
+NrmMaybeCtrlL:
+    cmp #$8C ; C-L ?
+    bne @nf
+    jsr TypeLastLine
+    lda #0
+    sta RepeatCounter
+    jmp ResetNormalMode
 @nf:
 NrmMaybeDorC:
     cmp #$C4 ; 'D'
@@ -2582,6 +2599,57 @@ BasicLineBack:
 @bad:
     clc
     rts
+SaveTypedLine:
+    lda LineLength
+    sta LastLineLength
+    ldx #0
+@lp:
+    lda IN,x
+    sta LastLineBuffer,x
+    inx
+    cpx LineLength
+    bne @lp
+    ; Leaves X at end of line
+    rts
+TypeLastLine:
+    ;; Back up to the start
+    txa
+    tay
+    jsr EmitYCntBsp
+    ;; Fill buffer with last-typed line
+    ldx #0
+@lp:
+    lda LastLineBuffer,x
+    sta IN,x
+    inx
+    cpx LastLineLength
+    bne @lp
+    ;; Type it out in the display
+    ldx #0
+    lda LineLength
+    pha
+        lda LastLineLength
+        sta LineLength
+        jsr PrintRestOfLine
+    pla
+    ;; If new line is shorter than old, emit spaces to cover
+    ;;  previous line
+    cmp LastLineLength
+    bcc @noEraseTail
+    ; New line's shorter
+    sec
+    sbc LastLineLength
+    pha
+        tay
+        jsr EmitYCntSpaces
+    pla
+    tay
+    jsr EmitYCntBsp
+@noEraseTail:
+    ldx LastLineLength
+    rts
+LastLineLength:
+    .byte 0
 NoSpaces:
     .byte 0
 DetokCurC: ; current char (screen code)
@@ -2631,4 +2699,7 @@ ViPromptIsBasic:
 
 ; The generated version string
 .include "version.inc"
+
+.align 256
+LastLineBuffer:
 
