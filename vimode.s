@@ -564,6 +564,7 @@ ViModeEntry:
     ; Or undo buffer
     sta UndoLineLength
     sta UndoCursorPos
+    sta UndoSavePending
     ; Install direct keyin fn (no GETLN check)
     lda #<RealInput
     sta InputRedirFn
@@ -858,7 +859,13 @@ TryInsertChar:
 
     ; If we're here we are definitely inserting
 InsertOk:
-    ; First, make some space in the buffer
+    ; Check to see if there's an undo-save pending
+    bit UndoSavePending
+    bpl @noSave
+    jsr SaveUndoLine
+    inc UndoSavePending ; relies on it being #$FF
+@noSave:
+    ; Now make some space in the buffer
     stx SaveX
     ldx LineLength
     inx
@@ -987,6 +994,8 @@ EnterNormalMode:
     ; We just entered; make sure we're not capturing
     lda #$0
     sta CaptureFlag
+    ; or suppressing undo's
+    sta SuppressUndoSave
     ; Should we repeat the last insert/append?
     lda RepeatCounter
     beq @noRptIns
@@ -1003,7 +1012,7 @@ EnterNormalMode:
     ldy InsertEntryLoc
 @rptIns:
     ;;
-    ;; Start of outer repeat loop for insert/appen
+    ;; Start of outer repeat loop for insert/append
     ;;
     dec RepeatCounter ; FIRST repeat was already done by user.
     beq @doneRpt
@@ -1074,6 +1083,8 @@ ResetNormalMode:
     lda RepeatCounter
     beq @checkCapture
     ; Yes, we have a repeat count. Repeat it!
+    lda #$FF
+    sta SuppressUndoSave
 
     ; TODO: at some future point we may wish to have the individual
     ;  commands handle the repeat count. Certainly going to be more
@@ -1086,6 +1097,9 @@ ResetNormalMode:
 
     ;; Process a captured move (delete or change)
 @checkCapture:
+    lda #$0
+    sta SuppressUndoSave ; in case it was set at a repeat, above
+    ;
     lda CaptureFlag
     bne @capturing
     jmp @notCapturing
@@ -1208,6 +1222,13 @@ NrmMaybeI:
 EnterInsertMode:
     jsr RestorePrompt
     stx InsertEntryLoc
+    lda NrmLastKey
+    cmp #$D3 ; 'S'
+    beq @skipUndo ; -> we got here from a "S" substitute command
+                  ;     it already handled the save point
+    lda #$FF
+    sta UndoSavePending ; save for undo if and only if something's inserted
+@skipUndo:
     jmp InsertMode
 NrmMaybeIOut:
 ;
@@ -1225,6 +1246,7 @@ NrmMaybeA:
 NrmMaybeCtrlL:
     cmp #$8C ; C-L ?
     bne @nf
+    jsr SaveUndoLine
     jsr TypeLastLine
     lda #0
     sta RepeatCounter
@@ -1248,6 +1270,12 @@ NrmMaybeSorX:
     cmp #$D8 ; 'X'
     bne @nf
 @doIt:
+    ; do an "undo save point".
+    ;  if we're in a repeated X command, only do it before the first one
+    bit SuppressUndoSave ; set in ResetNormalMode during repeat
+    bmi @noSave
+    jsr SaveUndoLine
+@noSave:
     ; equivalent to forward-one-then-BS, unless at end of line
     cpx LineLength
     beq @fail
@@ -1271,12 +1299,20 @@ NrmMaybeDELorBS:
     cmp #$88 ; LeftArrow/BS
     bne @nf
 @eq:
+    ; Do an undo-save-point.
+    ;  If it's a repeat, only do a save before the first one
+    bit SuppressUndoSave ; set in ResetNormalMode during repeat
+    bmi @noSave
+    jsr SaveUndoLine
+@noSave:
     jsr Backspace
     jmp ResetNormalMode
 @nf:
 NrmMaybeCtrlG:
     cmp #$87 ; C-G
     bne @nf
+    ; save point for undo
+    jsr SaveUndoLine
     ; Fetch a line of BASIC (_if_ we're a BASIC prompt)
     ;  from the number at the start of the buffer
     jsr MaybeFetchBasicLine
@@ -2519,6 +2555,9 @@ BasicLineForward:
     cmp #$FF
     beq @bad ; -> Last-entered line had no line number
 @useLineNum:
+    jsr SaveUndoLine ; We save-point only when there hasn't yet been
+                     ;  a ^G, ^P, or ^N at this prompt (that is,
+                     ;  when there's no idea of "current basic line"
     lda TXTTAB
     sta LOWTR
     lda TXTTAB+1
@@ -2574,6 +2613,9 @@ BasicLineBack:
     cmp #$FF
     beq @bad
 @useLineNum:
+    jsr SaveUndoLine ; We save-point only when there hasn't yet been
+                     ;  a ^G, ^P, or ^N at this prompt (that is,
+                     ;  when there's no idea of "current basic line"
     lda TXTTAB
     sta LOWTR
     lda TXTTAB+1
@@ -2735,9 +2777,13 @@ TypeLastLine:
     rts
 LastLineLength:
     .byte 0
+SuppressUndoSave:
+    .byte 0
 UndoLineLength:
     .byte 0
 UndoCursorPos:
+    .byte 0
+UndoSavePending:
     .byte 0
 NoSpaces:
     .byte 0
