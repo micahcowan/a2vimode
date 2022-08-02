@@ -1,11 +1,8 @@
 all: VIMODE-DOS.dsk VIMODE-PRODOS.dsk
 
-VIMODE-PRODOS.dsk: VIMODE STARTUP SYSTEM.dsk Makefile
+VIMODE-PRODOS.dsk: VIMODE PRODOS_242.dsk Makefile
 	rm -f $@
-	cp SYSTEM.dsk $@
-	# This isn't working at the moment:
-	#prodos -t BAS -a 0x0801 $@ SAVE STARTUP
-	# We have it pre-saved to SYSTEM.DSK instead.
+	cp PRODOS_242.dsk $@
 	prodos -t BIN -a 0x6000 $@ SAVE VIMODE
 
 VIMODE-DOS.dsk: VIMODE BSTRAP HELLO Makefile
@@ -14,9 +11,6 @@ VIMODE-DOS.dsk: VIMODE BSTRAP HELLO Makefile
 	dos33 -y $@ save A HELLO
 	dos33 -y -a 0x6000 $@ bsave VIMODE
 	dos33 -y -a 0x300 $@ bsave BSTRAP
-
-STARTUP: startup-basic.txt Makefile
-	tokenize_asoft < $< > $@ || { rm $@; exit 1; }
 
 HELLO: hello-basic.txt Makefile
 	tokenize_asoft < $< > $@ || { rm $@; exit 1; }
