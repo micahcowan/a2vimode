@@ -5,15 +5,11 @@ VIMODE-PRODOS.dsk: VIMODE PRODOS_242.dsk Makefile
 	cp PRODOS_242.dsk $@
 	prodos -t BIN -a 0x6000 $@ SAVE VIMODE
 
-VIMODE-DOS.dsk: VIMODE BSTRAP HELLO Makefile
+VIMODE-DOS.dsk: VIMODE BSTRAP DOS_33.dsk Makefile
 	rm -f $@
-	cp empty.dsk $@
-	dos33 -y $@ save A HELLO
+	cp DOS_33.dsk $@
 	dos33 -y -a 0x6000 $@ bsave VIMODE
 	dos33 -y -a 0x300 $@ bsave BSTRAP
-
-HELLO: hello-basic.txt Makefile
-	tokenize_asoft < $< > $@ || { rm $@; exit 1; }
 
 VIMODE: vimode.o Makefile
 	ld65 -t none -o $@ $<
@@ -21,7 +17,7 @@ VIMODE: vimode.o Makefile
 BSTRAP: bootstrap.o Makefile
 	ld65 -t none -o $@ $<
 
-version.inc: vimode.s bootstrap.s empty.dsk SYSTEM.dsk Makefile
+version.inc: vimode.s bootstrap.s DOS_33.dsk PRODOS_242.dsk Makefile
 	rm -f $@
 	git fetch --tags # make sure we have any tags from server
 	( \
@@ -40,4 +36,4 @@ vimode.o: version.inc
 
 .PHONY: clean
 clean:
-	rm -f VIMODE-DOS.dsk VIMODE-PRODOS.dsk VIMODE BSTRAP HELLO version.inc *.o *.list
+	rm -f VIMODE-DOS.dsk VIMODE-PRODOS.dsk VIMODE BSTRAP version.inc *.o *.list
