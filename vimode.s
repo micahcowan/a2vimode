@@ -1216,6 +1216,33 @@ NrmMaybeUndo:
                        ;  (next U reverses this one)
     jmp ResetNormalMode
 @nf:
+NrmMaybeR:
+    cmp #$D2 ; 'R'
+    bne @nf
+    ; Read key to replace with
+    jsr MyRDKEY
+    sta @saveReplace
+    ; We handle any repeats ourselves
+    lda RepeatCounter
+    bne @lp
+    inc RepeatCounter
+@lp:
+    cpx LineLength
+    bne @notEnd
+    ; We're at the end of the line: discontinue replace
+    lda #0
+    sta RepeatCounter ; lose any remaining repeats
+    jmp ResetNormalMode
+@notEnd:
+@saveReplace = * + 1
+    lda #$00 ; OVERWRITTEN
+    sta IN,x
+    jsr ViPrintChar
+    inx
+    dec RepeatCounter
+    bne @lp
+    jmp ResetNormalMode
+@nf:
 NrmMaybeI:
     cmp #$C9 ; 'I'
     bne NrmMaybeIOut
