@@ -566,6 +566,8 @@ ViModeEntry:
     sta UndoLineLength
     sta UndoCursorPos
     sta UndoSavePending
+    ; Or "replace mode"
+    sta ReplaceModeFlag
     ; Install direct keyin fn (no GETLN check)
     ;lda #<RealInput
     ;sta InputRedirFn
@@ -850,9 +852,25 @@ MakeYRegRoom:
 @saveX = * + 1
     ldx #$00 ; OVERWRITTEN
     rts
+TryReplaceChar:
+    cpx #kMaxLength
+    bne :+
+    jmp NoRoomRight
+:
+    sta IN,x
+    inx
+    jsr ViPrintChar
+    ; Are we past the end of the line? If so, extend.
+    cpx LineLength
+    bcc :+
+    stx LineLength
+:
+    jmp InsertMode
 TryInsertChar:
     ; Check to see if there's room for the char
     sta SaveA
+    bit ReplaceModeFlag
+    bmi TryReplaceChar ; -> We got here via Ctrl-R - do a replace instead!
     lda LineLength
     cmp #kMaxLength
     bcc InsertOk
@@ -951,12 +969,34 @@ PrintControlChar:
     pla
     sta INVFLAG
     rts
+BackspaceReplace:
+    ; A check was already passed for X == 0 - we def have room there -
+    ;  but we might be past the start position, which we also don't want
+    cpx ReplaceModeStartPos
+    bne :+
+    rts
+:
+    dex
+    ; First, emit a backspace
+    lda #$88
+    jsr COUT
+    ; Now restore the char that used to be here (from undo buffer)
+    ;  and print that
+    lda UndoBuffer,x
+    sta IN,x
+    jsr COUT
+    ; Finally, another backspace to get back in position
+    lda #$88
+    jsr COUT
+    rts
 Backspace:
     cpx #0
     bne @cont
     ;jsr BELL
-    rts ; nothing to do.
+    rts
 @cont:
+    bit ReplaceModeFlag
+    bmi BackspaceReplace ; -> We got here via Ctrl-R - handle specially
     ; First, emit the backspace character to screen
     lda #$88
     jsr COUT
@@ -997,6 +1037,8 @@ EnterNormalMode:
     sta CaptureFlag
     ; or suppressing undo's
     sta SuppressUndoSave
+    ; or in replace mode next time we enter insert
+    sta ReplaceModeFlag
     ; Should we repeat the last insert/append?
     lda RepeatCounter
     beq @noRptIns
@@ -1215,6 +1257,16 @@ NrmMaybeUndo:
                        ;  undo contents with line buffer
                        ;  (next U reverses this one)
     jmp ResetNormalMode
+@nf:
+NrmMaybeCtrlR:
+    cmp #$92 ; Ctrl-R
+    bne @nf
+    dec ReplaceModeFlag ; assumed to have been #$00, set by EnterNormalMode
+    jsr SaveUndoLine
+    stx ReplaceModeStartPos
+    lda #$0
+    sta RepeatCounter ; we don't respect counts for Ctrl-R atm.
+    jmp EnterInsertMode
 @nf:
 NrmMaybeR:
     cmp #$D2 ; 'R'
@@ -2893,6 +2945,13 @@ TypeLastLine:
 @noEraseTail:
     ldx LastLineLength
     rts
+ReplaceModeFlag:
+    ; used to indicate we're not _really_ in insert mode, but rather
+    ; replace mode
+    .byte 0
+ReplaceModeStartPos:
+    ; Cursor position at the time we entered replace mode
+    .byte 0
 LastLineLength:
     .byte 0
 SuppressUndoSave:
