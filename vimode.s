@@ -15,6 +15,8 @@ TXTTAB = $67
 CURLIN = $75
 LOWTR  = $9B ; FINDLIN puts the pointer to a line here when found
 FAC = $9D
+ARG = $A5
+SGNCPR = $AB
 
 CHRGET = $B1
 CHRGOT = $B7
@@ -25,7 +27,12 @@ TOK_TABLE = $D0D0
 FNDLIN = $D61A ; finds the location of a line from its number
 GETCHR = $D72C ; not to be confused with CHRGET in ZP. Gets chr from (FAC),y
 LINGET = $DA0C ; parses a line number from TXTPTR
+FMULTT = $E982
+FDIVT  = $EA69
+MOVAF  = $EB63 ; MOVAF is the name in Apple Programmer's Handbook.
+               ;  Copies FAC -> ARG
 FLOAT_2 = $EBA0
+INT    = $EC23
 FOUT = $ED34
 VTAB = $FC22
 VTABZ = $FC24
@@ -631,7 +638,7 @@ PrefillFlag = * + 1
     lda #$00
     sta PrefillFlag ; make sure we don't do this again at the next prompt
 @dbail:
-    jmp InsertMode
+    jmp PrefillDone
 DbgPrefill:
     ; used to pre-fill the buffer when we first enter
     scrcode "PRINT ",'"',"ALPHA BETA GAMMA DELTA EPSILON IOTA",'"'
@@ -644,10 +651,16 @@ DbgPrefill:
 .endif ; (repeat)
     .byte 0
 .endif ; DEBUG
+PrefillDone:
+    ; Are we in AutoNumber mode? Then do that.
+    bit AutoNumberModeFlag
+    bpl :+
+    jsr DoAutoNumber
 InsertMode:
 .ifdef DEBUG
     jsr PrintState
 .endif
+:
     ; INSERT MODE.
     jsr MyRDKEY
     ; We enter here via return from CheckForGetLine (when GETLN
@@ -675,6 +688,12 @@ MaybeCtrlBackslash:
     jmp InsertMode
 @nf:
 .endif
+MaybeCtrlA:
+    cmp #$81 ; C-A ?
+    bne @nf
+    jsr ToggleAutoNumber
+    jmp InsertMode
+@nf:
 MaybeCtrlP:
     cmp #$90 ; C-P
     bne @nf
@@ -827,6 +846,10 @@ EmitYCntSpaces:
 ;   on return, Y-reg holds ACTUAL amount of room made
 ;   DOESN'T UPDATE THE SCREEN, DO THAT YOURSELF
 MakeYRegRoom:
+    cpy #0
+    bne :+
+    rts
+:
     stx @saveX
     sty @finalY
     lda #kMaxLength
@@ -845,12 +868,17 @@ MakeYRegRoom:
     adc @finalY
     sta LineLength
     tay
+    lda @saveX
+    clc
+    adc @finalY
+    sta @stopY
 @copy:
     lda IN,x
     sta IN,y
     dey
     dex
-    cpx @saveX
+@stopY = * + 1
+    cpy #$00 ; OVERWRITTEN
     bcs @copy
 @end:
 @finalY = * + 1
@@ -1183,25 +1211,7 @@ ResetNormalMode:
     sbc CapturePos
     sta PosDiff
 @skipCalc:
-    ;; Delete forward by copying char-at-Y to char-at-X until
-    ;;  we've reached LineLength
-@copyBackLoop:
-    cpy LineLength
-    beq @deleteDone
-    lda IN,y
-    sta IN,x
-    inx
-    iny
-    bne @copyBackLoop
-@deleteDone:
-    lda #$8D ; we don't really need to terminate with a CR here,
-    ldy LineLength
-    sta IN,y ; but what the heck.
-    ; subtract from LineLength
-    lda LineLength
-    sec
-    sbc PosDiff
-    sta LineLength
+    jsr DeleteFromXToY
     ;; Now update the screen - print the rest of the line, and
     ;; spaces over the previous line-tail
     ldx CapturePos
@@ -1253,6 +1263,23 @@ NrmCmdExec:
     jmp NrmSafeCommands     ; -> yes, skip modifying commands
 ; START of line-modifying/not-just-movement commands
 NrmUnsafeCommands:
+NrmMaybeCtrlA:
+    cmp #$81 ; C-A ?
+    bne @nf
+    lda RepeatCounter
+    beq @toggle
+    ; Auto-increment by a specific number
+    sta SkipBy
+    jsr RemoveAutoNumber
+    jsr DoAutoNumber
+    jmp @finish
+@toggle:
+    jsr ToggleAutoNumber
+@finish:
+    lda #0
+    sta RepeatCounter
+    jmp ResetNormalMode
+@nf:
 NrmMaybeUndo:
     cmp #$D5 ; 'U'
     bne @nf
@@ -1786,6 +1813,37 @@ GiwcAlphaArea:
     cmp #$DB ; > 'Z' (>= '[')?
     jmp GiwcReverseCarryAndReturn
 ;
+DeleteFromXToY:
+    ;; Delete forward by copying char-at-Y to char-at-X until
+    ;;  we've reached LineLength, and then adjust LineLength
+    ;;
+    ;; Preserves X, stomps on A, Y
+    stx @saveX
+    tya
+    sec
+    sbc @saveX
+    sta @posDiff
+@copyBackLoop:
+    cpy LineLength
+    beq @deleteDone
+    lda IN,y
+    sta IN,x
+    inx
+    iny
+    bne @copyBackLoop
+@deleteDone:
+    ldy LineLength
+    lda #$8D ; we don't really need to terminate with a CR here,
+    sta IN,y ; but what the heck.
+    ; subtract from LineLength
+    lda LineLength
+    sec
+@posDiff = * + 1
+    sbc #$00 ; OVERWRITTEN
+    sta LineLength
+@saveX = * + 1
+    ldx #$00 ; OVERWRITTEN
+    rts
 BackWhileWord:
 @lp:
     cpx #0
@@ -2580,14 +2638,19 @@ MaybeRecordLineNumber:
     ; ...and save it.
     lda LINNUM
     sta LastEnteredLineNum
+    sta LastRecordedLineNum
     lda LINNUM+1
     sta LastEnteredLineNum+1
+    sta LastRecordedLineNum+1
     rts ;
 @no:
     ; record an indication that no line number was entered
     lda #$FF
     sta LastEnteredLineNum
     sta LastEnteredLineNum+1
+    ; and also disable any autonumber mode
+    lda #0
+    sta AutoNumberModeFlag
     rts
 PastLineNumP:
     ;; Easy: we just stop at the first line number
@@ -2951,9 +3014,179 @@ TypeLastLine:
 @noEraseTail:
     ldx LastLineLength
     rts
+ToggleAutoNumber:
+    ; Are we in BASIC?
+    bit ViPromptIsBasic
+    bmi :+
+    rts
+:
+    lda AutoNumberModeFlag
+    eor #$FF
+    sta AutoNumberModeFlag
+    bmi DoAutoNumber
+    jmp RemoveAutoNumber
+DoAutoNumber:
+    ; Are we in BASIC?
+    bit ViPromptIsBasic
+    bmi :+
+    rts
+:
+    ;; Save X-reg, BSp to start of line
+    stx @saveX
+    txa
+    tay
+    jsr EmitYCntBsp
+    ;; Generate the line number we will use:
+    ; Pull prev-entered line number, add SkipBy, place in FAC
+    ;  and convert
+    lda LastRecordedLineNum ; low byte
+    clc
+    adc SkipBy ; default: 10 decimal
+    sta FAC+2
+    lda LastRecordedLineNum+1
+    adc #0 ; for carry
+    sta FAC+1
+    ldx #$90 ; exponent = 2^16
+    sec
+    jsr FLOAT_2
+    ; Move from FAC to ARG, so we can divide it in a bit
+    jsr MOVAF
+    ; Grab SkipBy, convert to float
+    lda SkipBy
+    sta FAC+1
+    lda #0
+    sta FAC+2
+    ldx #$88 ; exp is 2^8
+    sec
+    jsr FLOAT_2
+    lda #0
+    sta SGNCPR  ; set combined sign of the args to "positive"
+                ; (needed for division in a bit)
+    ; now save the convered SkipBy for use just a bit later -
+    ;  we could only possibly care about the first two bytes
+    ;  (exponent and one byte of mantissa)
+    lda FAC+1
+    pha
+    lda FAC ; FDIVT needs this exponent in A-reg
+    pha
+        ;; Ensure line number is multiple of SkipBy:
+        ;;  Divide by (converted) SkipBy (get from stack into ARG)
+        jsr FDIVT
+        ;;  INT()
+        jsr INT
+    ;;  Multiply by (converted) SkipBy
+    ; Get SkipBy from stack into ARG
+    pla
+    sta ARG
+    pla
+    sta ARG+1
+    lda #0
+    sta ARG+2
+    sta ARG+3
+    sta ARG+4
+    ; I think we don't need to set SGNCPR, should already be positive
+    ;  from before
+    lda FAC
+    jsr FMULTT
+    ;; Call AppleSoft's number conversion routine
+    jsr FOUT ; puts it at bottom of stack ($100)
+    ;; Make space for number (plus spave) at start of buffer
+    ; Count how much space
+    ldy #0
+@cnt:
+    lda $100,y
+    beq @doneCnt
+    iny
+    bne @cnt
+@doneCnt:
+    iny ; and one for SPC character
+    sty @insertedSpace
+    ldx #0
+    jsr MakeYRegRoom ; make the space
+    ; XXX we didn't check to see if enough space was made
+    dey
+    lda #$A0 ; store SPC
+    sta IN,y
+    ;; Copy number (working backwards from current Y-reg)
+    dey
+@cpy:
+    lda $100,y
+    ora #$80
+    sta IN,y
+    dey
+    bpl @cpy
+    ;; Update display
+    ; Print rest of line
+    ldx #0
+    jsr PrintRestOfLine
+    ; Restore X, and adjust forward by inserted space
+@saveX = * + 1
+    lda #$00 ; OVERWRITTEN
+    clc
+@insertedSpace = * + 1
+    adc #$00 ; OVERWRITTEN
+    tax
+    ; Subtract: LineLength - Xpos
+    ;  (but we do it via Xpos - LineLength, and then reverse the sign)
+    clc
+    sbc LineLength ; - LineLength - 1. The - 1 is for two's complement
+                   ;     sign reversal.
+    eor #$FF
+    ; Backspace to cursor position
+    tay
+    jsr EmitYCntBsp
+    rts
+RemoveAutoNumber:
+    ;; Save X-reg, BSp to start of line
+    stx @saveX
+    txa
+    tay
+    jsr EmitYCntBsp
+    ;; Find start of first non-space, non-number
+    ldx #0
+    ldy #0
+@find:
+    cpy LineLength
+    beq @findDone
+    lda IN,y
+    cmp #$A0 ; SPC
+    beq @cont
+    jsr GetIsDigit
+    bcc @findDone
+@cont:
+    iny
+    bne @find
+@findDone:
+    sty @numChars
+    ;; Delete to that point
+    jsr DeleteFromXToY
+    ;; Update display
+    jsr PrintRestOfLine
+    ; Print additional spaces over tail of original line
+    ;  (use deletion count to determine how many)
+@numChars = * + 1
+    ldy #$00 ; OVERWRITTEN
+    jsr EmitYCntSpaces
+    ldy @numChars
+    jsr EmitYCntBsp ; get back to current EOL
+    ; Restore X
+@saveX = * + 1
+    lda #$00 ; OVERWRITTEN
+    cmp @numChars
+    bcs @subtr ; X - # deleted > 0, use that as new position
+    ; X's adjusted position is less than 0. Just use 0.
+    ldx #0
+    beq @rejoin
+@subtr:
+    ; sec - we know it's set already
+    sbc @numChars
+    tax
+@rejoin:
+    jsr BackspaceFromEOL
+    rts
 ReplaceModeFlag:
     ; used to indicate we're not _really_ in insert mode, but rather
-    ; replace mode
+    ;  replace mode
     .byte 0
 ReplaceModeStartPos:
     ; Cursor position at the time we entered replace mode
@@ -2981,7 +3214,15 @@ DetokLastT: ; last-emitted tok
 CurBasicLinePtr:
     .word 0
 LastEnteredLineNum:
+    ; last entered line number, if last-entered line started with one
     .word $FFFF
+LastRecordedLineNum:
+    ; last entered line number, even if not from last-entered line
+    .word 9
+SkipBy:
+    .byte 10 ; decimal 10
+AutoNumberModeFlag:
+    .byte 0
 RepeatCounter:
     .byte 0
 NrmLastKey:
