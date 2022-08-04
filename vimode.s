@@ -336,6 +336,12 @@ StSvCH:.byte 0
     sta SaveA
     stx SaveX
     sty SaveY
+    cpx #0 ; We can be certain X=0 at the start of GETLN (because it
+           ; sets it that way). At least if its caller's not playing
+           ; seriously dirty tricks
+    beq :+
+    jmp @checkFailed
+:
 
 .ifdef DEBUG
     clc
