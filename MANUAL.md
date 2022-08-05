@@ -52,8 +52,8 @@ A few of these keys are *destructive*&mdash;they will destroy the current input 
 | **^Z** | insert | (Control-Z) Prints **a2vimode**'s version number, for informational purposes. |
 | --- | --- | --- |
 | **^G** | **normal** | (Control-G) "go to". **Destructive**. If the cursor is at a number, it will throw away the current line contents and replace them with the contents of the line whose number is the same as the one your cursor is on (if it exists). Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
-| **^N** | **normal** | (Control-N). **Destructive**. Goes to the program line in AppleSoft that comes after the current one. If **Control-G** was never typed, and the current line has no line number at the start of it, does nothing. Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
-| **^P** | **normal** | (Control-P). **Destructive**. Goes to the program line in AppleSoft that precedes the current one. If **Control-G** was never typed, and the current line has no line number at the start of it, does nothing. Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
+| **^N** | **normal** | (Control-N). **Destructive**. Goes to the program line in AppleSoft that comes after the current one, or after the most recently-typed one. If **Control-G** was never typed, and the last-typed line had no line number, does nothing. Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
+| **^P** | **normal** | (Control-P). **Destructive**. Goes to the program line in AppleSoft that comes before the current one, or before the most recently-typed one. If **Control-G** was never typed, and the last-typed line had no line number, does nothing. Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
 | **^L** | **normal** | (Control-L). **Destructive**. Replaces the current input line with the contents of the last line that was entered (with a final carriage-return). **ProDOS**: lines containing ProDOS commands are *not saved* and cannot be retyped with `CONTROL-L`. |
 | **`TAB`<br />`ESC`<br />^I<br />^\[** | **normal** | Leaves **insert** mode and enters **normal** mode. |
 
@@ -100,8 +100,8 @@ In Normal Mode, the following keys have meaning:
 | **U** | **u** | undo last change. See [Undo](#Undo). |
 | **^A** |   | (Control-A) "auto-number". Prefixes line numbers at the current and future input lines. Type again to disable. Also works in insert mode (and remains in insert). If preceded by a number (<256) will advance line numbers by that amount. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
 | **^G** |   | (Control-G) "go to". **Destructive**. If the cursor is at a number, it will throw away the current line contents and replace them with the contents of the line whose number is the same as the one your cursor is on (if it exists). Also works in insert mode (leaves in normal mode). Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
-| **^N** |   | (Control-N). **Destructive**. Goes to the program line in AppleSoft that comes after the current one. If **Control-G** was never typed, and the current line has no line number at the start of it, does nothing. Also works in insert mode (leaves in normal mode). Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
-| **^P** |   | (Control-P). **Destructive**. Goes to the program line in AppleSoft that precedes the current one. If **Control-G** was never typed, and the current line has no line number at the start of it, does nothing. Also works in insert mode (leaves in normal mode). Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
+| **^N** |   | (Control-N). **Destructive**. Goes to the program line in AppleSoft that comes after the current one, or after the most recently-typed line. If **Control-G** was never typed, and the last-typed line had no line number, does nothing. Also works in insert mode (leaves in normal mode). Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
+| **^P** |   | (Control-P). **Destructive**. Goes to the program line in AppleSoft that precedes the current one, or precedes the most recently-typed line. If **Control-G** was never typed, and the last-typed line had no line number, does nothing. Also works in insert mode (leaves in normal mode). Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
 | **^L** |   | (Control-L). **Destructive**. Replaces the current input line with the contents of the last line that was entered (with a final carriage-return). Also works in insert mode (leaves in normal mode). **ProDOS**: lines containing ProDOS commands are *not saved* and cannot be retyped with `CONTROL-L`. |
 | **^X** |   | (Control-X) Cancel. Discards the current line-in-progress and restarts the prompt. Also works in insert mode. (This feature is also present in the standard Apple \]\[ prompt, when **a2vimode** is not installed.) |
 | **^Z** |      | (Control-Z) displays **a2vimode**'s version string. Also works when in insert mode. |
@@ -150,6 +150,34 @@ If you type `CONTROL-L` in either insert or normal mode, the current input line 
 Of course, `CONTROL-L` can *not* restore a line that had been typed *before* **a2vimode** was activated. The line will be blanked in that event.
 
 **WARNING:** In ProDOS, `CONTROL-L` can *not* restore any line that was recognized as a ProDOS command. This is because, when a user presses the `RETURN` key, ProDOS intercepts it, processes the command, and obliterates the line (sometimes filling it with other things before erasing again) before **a2vimode** even gets to see the keypress! This leaves us with no means to save that line aside. ProDOS does not do this with AppleSoft commands. Apple DOS does not suffer from this defect (Apple DOS *also* siezes the line from us, but it does so after *we* emit the carriage return back out to the screen, so we've had a chance to process the input line by then!).
+
+## AppleSoft Integration Features
+
+This software contains a few features that are only available for use when the prompt is recognized as the direct AppleSoft command prompt (where commands, and lines of BASIC code, may be entered):
+
+ - You can [summon any line of the BASIC program](#Summoning-BASIC-lines) to be viewed or edited at the prompt
+ - You can traverse forward or backward, a line at a time, through the BASIC program.
+ - You can activate, deactivate, and adjust auto-incremented line numbers
+
+### Summoning BASIC lines
+
+To bring a BASIC line into the prompt for editing, just type the desired line number and then `CONTROL-G`. `CONTROL-G` (in both normal and insert mode) will travel to the BASIC line whose number is at or lies immediately before the cursor's current position. If **insert** mode was active, you will be switched to **normal** mode for easier navigation within the line.
+
+Another movement mechanic was designed specifically to pair with this line-summoning feature: if you type the `#` key (in **normal** mode), the cursor will jump forward to the start of the next number within the line. You can then use the `,` key to jump backward to a previous number, and either the `#` key *or* the `;` key to jump forward.
+
+For instance, if you type `100` `CONTROL-G` while in insert mode, it might call up a line like:
+```
+ ] 100 IF A<>10 THEN GOSUB 500:GOTO 30
+```
+If the cursor is at the start of the line (on the `1` of the line number `100`), then if you type `#` (you are now in **normal** mode, after summoning the line), the cursor will move to the `10` of `A<>10`. If you type it again, or `;`, then the cursor will move to the `500` of `GOSUB 500`. You could then type `CONTROL-G` again, and the line would again be replaced by a line from the BASIC program; this time, line 500.
+
+If the cursor were at the end of the line, you would still type a `#`. However, the cursor would not hove for this first `#`, because that is a forward-moving command. But if you then follow up by typing `,`. the cursor will move back to the previous start-of-a-number (one or two characters, to the `3` of `GOTO 30`). Typing `,` once more would bring it to the `500` of `GOSUB 500` once more.
+
+If you were to type `CONTROL-G` while the cursor is located at the `10` of `A<>10`, **a2vimode** would *still* attempt to summon line 10 of the program, even though in this context it does not represent a line number. **a2vimode** does not process the syntax of the line in any way&mdash;it only recognizes whether or not it is at a number.
+
+**Note:** the `;` and `,` keys have a general meaning of "continue jumping to the thing that was asked for"; when preveded by other commands besides `#` (`T` or `F`), they will jump around to whatever character was specified, and not arbitrary numbers. See the [Jump-To-Char](#Jump-To-Char) section for more information.
+
+You may wonder why `CONTROL-G` uses actual input in the line, instead of [the "repeat" counter](#Counted-Repeated-Commands), like the autoincrement `CONTROL-A` feature does. Well, one of the reasons is so that you can use the trick we just described with `#`, `;`, and `,`, to choose a new line from a `GOTO` or a `GOSUB`. Another reason is that the command-repeat counter is not *visible* as it is typed, and for a line number it seems worthwhile to see where we are jmping to. Yet another reason is because the repeat counter currently can only be used with numbers whose values are less than 256, and line numbers are frequently much higher than that.
 
 ## Other Notes
 
