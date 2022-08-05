@@ -48,16 +48,16 @@ A few of these keys are *destructive*&mdash;they will destroy the current input 
 
 | Key | Final Mode | Description |
 | --- | --- | --- |
-| ^V | insert | (Control-V) Inserts the next character you type literally as input, without interpreting it specially |
-| ^A | insert | (Control-A) "auto-number". Inserts a line number at the front of the line. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features) |
-| ^X | insert | (Control-X) Cancel. Discards the current line-in-progress and restarts the prompt. (This feature is also present in the standard Apple \]\[ prompt, when **a2vimode** is not installed.) |
-| ^Z | insert | (Control-Z) Prints **a2vimode**'s version number, for informational purposes. |
+| **^V** | insert | (Control-V) Inserts the next character you type literally as input, without interpreting it specially |
+| **^A** | insert | (Control-A) "auto-number". Prefixes line numbers at the current and future input lines. Type again to disable. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features) |
+| **^X** | insert | (Control-X) Cancel. Discards the current line-in-progress and restarts the prompt. (This feature is also present in the standard Apple \]\[ prompt, when **a2vimode** is not installed.) |
+| **^Z** | insert | (Control-Z) Prints **a2vimode**'s version number, for informational purposes. |
 | --- | --- | --- |
-| ^G | **normal** | (Control-G) "go to". **Destructive**. If the cursor is at a number, it will throw away the current line contents and replace them with the contents of the line whose number is the same as the one your cursor is on (if it exists). Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
-| ^N | **normal** | (Control-N). **Destructive**. Goes to the program line in AppleSoft that comes after the current one. If **Control-G** was never typed, and the current line has no line number at the start of it, does nothing. Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
-| ^P | **normal** | (Control-P). **Destructive**. Goes to the program line in AppleSoft that precedes the current one. If **Control-G** was never typed, and the current line has no line number at the start of it, does nothing. Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
-| ^L | **normal** | (Control-L). **Destructive**. Replaces the current input line with the contents of the last line that was entered (with a final carriage-return). **ProDOS**: liknes containing ProDOS commands are *not saved* and cannot be retyped with `CONTROL-L`. |
-| `TAB`<br />`ESC`<br />^I<br />^\[ | **normal** | Leaves **insert** mode and enters **normal** mode. |
+| **^G** | **normal** | (Control-G) "go to". **Destructive**. If the cursor is at a number, it will throw away the current line contents and replace them with the contents of the line whose number is the same as the one your cursor is on (if it exists). Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
+| **^N** | **normal** | (Control-N). **Destructive**. Goes to the program line in AppleSoft that comes after the current one. If **Control-G** was never typed, and the current line has no line number at the start of it, does nothing. Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
+| **^P** | **normal** | (Control-P). **Destructive**. Goes to the program line in AppleSoft that precedes the current one. If **Control-G** was never typed, and the current line has no line number at the start of it, does nothing. Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
+| **^L** | **normal** | (Control-L). **Destructive**. Replaces the current input line with the contents of the last line that was entered (with a final carriage-return). **ProDOS**: lines containing ProDOS commands are *not saved* and cannot be retyped with `CONTROL-L`. |
+| **`TAB`<br />`ESC`<br />^I<br />^\[** | **normal** | Leaves **insert** mode and enters **normal** mode. |
 
 ### Normal Mode
 
@@ -88,6 +88,12 @@ In Normal Mode, the following keys have meaning:
 | **C***move* | **c***move* | ("change"-movement). Delete to next movement, then enter insert mode.<br />`CE`: type a replacement for the next word |
 | **DD** | **dd** | delete the line, remain in normal mode |
 | **CC** | **cc** | delete the line and enter insert mode to begin again |
+| **^A** |   | (Control-A) "auto-number". Prefixes line numbers at the current and future input lines. Type again to disable. Also works in insert mode (and remains in insert). See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features) for additional uses in normal mode. |
+| **^G** |   | (Control-G) "go to". **Destructive**. If the cursor is at a number, it will throw away the current line contents and replace them with the contents of the line whose number is the same as the one your cursor is on (if it exists). Also works in insert mode (leaves in normal mode). Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
+| **^N** |   | (Control-N). **Destructive**. Goes to the program line in AppleSoft that comes after the current one. If **Control-G** was never typed, and the current line has no line number at the start of it, does nothing. Also works in insert mode (leaves in normal mode). Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
+| **^P** |   | (Control-P). **Destructive**. Goes to the program line in AppleSoft that precedes the current one. If **Control-G** was never typed, and the current line has no line number at the start of it, does nothing. Also works in insert mode (leaves in normal mode). Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
+| **^L** |   | (Control-L). **Destructive**. Replaces the current input line with the contents of the last line that was entered (with a final carriage-return). Also works in insert mode (leaves in normal mode). **ProDOS**: lines containing ProDOS commands are *not saved* and cannot be retyped with `CONTROL-L`. |
+| **^X** |   | (Control-X) Cancel. Discards the current line-in-progress and restarts the prompt. Also works in insert mode. (This feature is also present in the standard Apple \]\[ prompt, when **a2vimode** is not installed.) |
 | **^Z** |      | (Control-Z) displays **a2vimode**'s version string. Also works when in insert mode. |
 
 The following common **vi** commands are not available in **a2vimode**, but have available equivalents:
