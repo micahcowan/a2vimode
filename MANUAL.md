@@ -61,11 +61,15 @@ A few of these keys are *destructive*&mdash;they will destroy the current input 
 
 ### Normal Mode
 
+#### Intro to Normal Mode
+
 Normal mode is mainly used for navigating around the line&mdash;going forward and backward by characters or words, or to the beginning or end of the input line, so that you can enter new text mid-line, or delete some bits you don't want.
 
 (Why is it called *normal* mode if the prompt *normally* starts in *input* mode? Because in **vi** it *is* the normal mode, and is called that, and while for our purposes it might be more accurate to call it "command mode" or "movement mode", "normal mode" is still what I expect is the least-confusing way to refer to it.) 🙂
 
 Within Normal Mode, typing a key does *not* insert the corresponding character. To go back to inserting things, you must go back to insert mode by typing the `I` key (which will not be entered); and then you can go back to typing things in as input.
+
+#### Special Keys
 
 In Normal Mode, the following keys have meaning:
 | Key | ~ vi key |  Action |
@@ -90,13 +94,13 @@ In Normal Mode, the following keys have meaning:
 | **X** | **x** | delete *forward* a character |
 | **S** | **s** | delete forward a character, then enter insert mode. ("substitute") |
 | **R** | **r** | reads a character from the keyboard, and replaces the current character under the cursor with that character. Has no effect (other than reading a keypress) past the end of the line |
-| **0-9** | **0-9** | specify a repeat count&mdash;e.g., `3W` moves forward three words. |
+| **0-9** | **0-9** | specify a repeat count&mdash;e.g., `3W` moves forward three words. See [Counted/Repeated Commands](#Counted-RepeatedCommands) |
 | **D***move* | **d***move* | delete to next movement&mdash;`D2B` deletes backwards two words;<br />`D12L` deletes the next 12 characters (`12X` also works) |
 | **C***move* | **c***move* | ("change"-movement). Delete to next movement, then enter insert mode.<br />`CE`: type a replacement for the next word |
 | **DD** | **dd** | delete the line, remain in normal mode |
 | **CC** | **cc** | delete the line and enter insert mode to begin again |
 | **U** | **u** | undo last change. See [Undo](#Undo). |
-| **^A** |   | (Control-A) "auto-number". Prefixes line numbers at the current and future input lines. Type again to disable. Also works in insert mode (and remains in insert). See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features) for additional uses in normal mode. |
+| **^A** |   | (Control-A) "auto-number". Prefixes line numbers at the current and future input lines. Type again to disable. Also works in insert mode (and remains in insert). If preceded by a number (<256) will advance line numbers by that amount. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
 | **^G** |   | (Control-G) "go to". **Destructive**. If the cursor is at a number, it will throw away the current line contents and replace them with the contents of the line whose number is the same as the one your cursor is on (if it exists). Also works in insert mode (leaves in normal mode). Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
 | **^N** |   | (Control-N). **Destructive**. Goes to the program line in AppleSoft that comes after the current one. If **Control-G** was never typed, and the current line has no line number at the start of it, does nothing. Also works in insert mode (leaves in normal mode). Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
 | **^P** |   | (Control-P). **Destructive**. Goes to the program line in AppleSoft that precedes the current one. If **Control-G** was never typed, and the current line has no line number at the start of it, does nothing. Also works in insert mode (leaves in normal mode). Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
@@ -113,9 +117,25 @@ The following common **vi** commands are not available in **a2vimode**, but have
 | **S** | **CC** | re-type the line from scratch |
 | **A** | **$A** | insert at the end of the line |
 
+#### Counted/Repeated Commands
+
+Most (but not all) commands can be repeated multiple times, by typing a number before typing the key for that command.
+
+For example, typing a `W` will move forward by one word; typing `3W` will move forward by three words. Typing `H` will move back by one letter; typing `6H` will move back six letters. `D2B` will delete the preceding two words (as will the equivalent `2DB`.
+
+You can even repeat inserts! If you type `3A` in normal mode, you will move one character forward and enter insert mode (because that's what `A` does). If you then type a `SPACE`, the word `HELLO`, and then type the `TAB` (or `ESC`) key to return to normal mode, it will add two more ` HELLO` words right after the first one (making three total, as requested)!
+
+It will also work in AppleSoft editing with the `CONTROL-P` and `CONTROL-N` commands: Typing `5` before a `CONTROL-P` will edit the program line that's five lines back from the "current" one. (See [AppleSoft Integration Features](#AppleSoft-Integration-Features) for how to use `CONTROL-N` and `CONTROL-P`.)
+
+Note: a single, 8-bit byte is used to track the repeat-count prefix. So, if you type a number that's greater than 255 (say, 300), the repeat counter will overflow, and the actual number of repeats will not be the number that was requested. Please stick to repeat-count prefixes that are less than or equal to 255.
+
+Finally, a "repeat count" before the `CONTROL-A` ("autonumber") command has a special (non-repeat) meaning: it adjusts any current and future auto-incremented line numbers to increment by the specified repeat count. See [AppleSoft Integration Features](#AppleSoft-Integration-Features) for details.
+
+There is no prompt indication to indicate that a repeat-count is in process. So, if you accidentally type a `3` before entering insert mode with `I`, then when you're done typing and return to normal mode, you may be surprised to find your insertion has been repeated! If this occurs, don't panic, just type the `U` (undo) command and type it again. If you suspect you may have typed a digit by accident before a command that you don't want to repeat, you should try typing `TAB` (or `ESC` a few times (harmless when you're already in normal mode) to cancel any repeat count.
+
 ## Disabling Vi-Mode
 
-To disable **vi-mode**, run `IN#0`.
+To disable **vi-mode**, execute the `IN#0` command.
 
 ## 80-Column
 
