@@ -11,14 +11,16 @@ Hello, and welcome to **a2vimode**, which installs **vi**-inspired prompt-line e
 
 Once the `HELLO` program is run (at startup if you boot from the disk), all text prompts that use the standard firmware prompt routine (DOS, Monitor, BASIC, BASIC Input), will start using vi-mode.
 
-With this routine installed, you can:
+With this software installed, you can:
  * navigate conveniently within the line you are editing
  * insert or delete text in the middle of a line
- * choose between left-arrow/backspace *or* the `DELETE` key for erasing characters.
+ * choose between left-arrow/backspace *or* the `DELETE` key for erasing characters
+ * undo the last change you made to the input line
+ * easily jump to lines of an AppleSoft BASIC program, to edit at the prompt (see [AppleSoft Integration Features](MANUAL.md#AppleSoft-Integration-Features) in the user manual)
 
-At the moment, you will also currently give up:
+You will also currently *lose* this feature from the standard Apple \]\[ prompt:
  * including other on-screen text as part of your input
-But we hope to add this feature back at some point.
+The [AppleSoft Integration Features (manual)](MANUAL.md#AppleSoft-Integration-Features), and the "retype last line" command (`CONTROL-L`) are intended to shore up (and surpass) that feature for some use cases, but you may still find yourself missing it for some other situations. We apologize for the inconvenience.
 
 ## Usage
 
