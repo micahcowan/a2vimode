@@ -145,6 +145,14 @@ A "save" is performed before a `CONTROL-G`, but *not* before a subsequent `CONTR
 
 A count-repeated command is generally a "single" change. If you type the backspace key 5 times, and then in normal mode type a `U`, only the final backspace will be undone, leaving the previous four deleted single characters permanently gone. *However*, if instead of typing backspace five times, you instead type `5` before a single press of backspace (in **normal** mode), then pressing the `U` key to undo the change will undo all 5 backspaces (since they were performed as part of a single repeated-command form). Similarly, if you type `DW`, and then another `DW` in normal mode, **undo** will only undo the most recently-deleted word, while `D2W` (or `2DW`) performs a two-word deletion that can be undone completely.
 
+#### Retype Last Line
+
+If you type `CONTROL-L` in either insert or normal mode, the current input line is discarded, and replaced by the last line you entered (but you can undo this change with `U` in normal mode, provided you don't make other intervening changes).
+
+Of course, `CONTROL-L` can *not* restore a line that had been typed *before* **a2vimode** was activated. The line will be blanked in that event.
+
+**WARNING:** In ProDOS, `CONTROL-L` can *not* restore any line that was recognized as a ProDOS command. This is because, when a user presses the `RETURN` key, ProDOS intercepts it, processes the command, and obliterates the line (sometimes filling it with other things before erasing again) before **a2vimode** even gets to see the keypress! This leaves us with no means to save that line aside. ProDOS does not do this with AppleSoft commands. Apple DOS does not suffer from this defect (Apple DOS *also* siezes the line from us, but it does so after *we* emit the carriage return back out to the screen, so we've had a chance to process the input line by then!).
+
 ## Disabling Vi-Mode
 
 To disable **vi-mode**, execute the `IN#0` command.
