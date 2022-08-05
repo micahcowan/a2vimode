@@ -49,3 +49,9 @@ a2vimode's Makefile assumes all of these tools are accessible from the current `
 ## How Does It Work?
 
 **a2vimode** looks at the stack to see if its immediate caller, or one just behind, is `RDCHAR` that in turn has been called by `GETLN`. If it sees them, it disables `RDCHAR` with a return to an `RTS` op, and replaces the return to `GETLN` with a return into our own specialized replacement prompter! 😈
+
+## Why Vi-Like?
+
+**Q: "Micah, why on earth did you choose *vi* as the model? Why not use a single mode for moving *and* inserting?**
+
+A: Because it's *my* hackfest project, and having vi-mode in the prompt is more fun for me! 😉 Plus, I hope to eventually add support for vi's `f`, `t`, `,`, and `;` commands (which a surprising number of vi users appear not to know about, but are among my most-used commands!), and using those definitely warrants having a separate movement mode, in my opinion.
