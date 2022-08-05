@@ -1305,6 +1305,7 @@ NrmMaybeCtrlR:
 NrmMaybeR:
     cmp #$D2 ; 'R'
     bne @nf
+    jsr SaveUndoLine
     ; Read key to replace with
     jsr MyRDKEY
     sta @saveReplace
