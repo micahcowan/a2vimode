@@ -155,9 +155,11 @@ Of course, `CONTROL-L` can *not* restore a line that had been typed *before* **a
 
 This software contains a few features that are only available for use when the prompt is recognized as the direct AppleSoft command prompt (where commands, and lines of BASIC code, may be entered):
 
- - You can [summon any line of the BASIC program](#Summoning-BASIC-lines) to be viewed or edited at the prompt
- - You can traverse forward or backward, a line at a time, through the BASIC program.
+ - You can [summon any line of the BASIC program](#summoning-basic-lines) to be viewed or edited at the prompt
+ - You can [traverse forward or backward](#traversing-basic), a line at a time, through the BASIC program.
  - You can activate, deactivate, and adjust auto-incremented line numbers
+
+**NOTE:** Use of these features may expose **a2vimode** to a greater risk of crashing. If the internal structure of the BASIC program listing is corrupted or compromised, using the line-summoning or traversing features could wind up reading arbitrary locations in memory and trying to interpret them inappropriately (of course, the same results would occur by running the AppleSoft `LIST` command as well). In theory, there may also be some risk of the auto-incremented lines feature trigging a math overflow or other error, which would crash and disable **a2vimode**, requiring you to run it again to restore your vi-mode prompt.
 
 ### Summoning BASIC lines
 
@@ -178,6 +180,12 @@ If you were to type `CONTROL-G` while the cursor is located at the `10` of `A<>1
 **Note:** the `;` and `,` keys have a general meaning of "continue jumping to the thing that was asked for"; when preveded by other commands besides `#` (`T` or `F`), they will jump around to whatever character was specified, and not arbitrary numbers. See the [Jump-To-Char](#Jump-To-Char) section for more information.
 
 You may wonder why `CONTROL-G` uses actual input in the line, instead of [the "repeat" counter](#Counted-Repeated-Commands), like the autoincrement `CONTROL-A` feature does. Well, one of the reasons is so that you can use the trick we just described with `#`, `;`, and `,`, to choose a new line from a `GOTO` or a `GOSUB`. Another reason is that the command-repeat counter is not *visible* as it is typed, and for a line number it seems worthwhile to see where we are jmping to. Yet another reason is because the repeat counter currently can only be used with numbers whose values are less than 256, and line numbers are frequently much higher than that.
+
+### Traversing BASIC
+
+The `CONTROL-N` and `CONTROL-P` keys are used to move forward or backward through lines of the current BASIC program. If a line of BASIC was summoned to the current prompt, then they will move relative to the summoned line.
+
+If no line was summoned yet into the current prompt, then **a2vimode** will check to see if the last line you typed started with a line number. If it did, then `CONTROL-P` will summon that line back to the prompt, and `CONTROL-N` will summon the line that follows it in the program listing (if there is one).
 
 ## Other Notes
 
