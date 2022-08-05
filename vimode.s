@@ -62,7 +62,7 @@ STRC_BASE = $7D0 ; line 23 (last line)
 PromptNormalChar = $AD ; '-'
 PromptCaptureChar= $A3 ; '#'
 
-DEBUG=1
+;DEBUG=1
 
 .ifndef DEBUG
 kMaxLength = $FE
