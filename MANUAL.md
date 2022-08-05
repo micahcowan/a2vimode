@@ -133,6 +133,22 @@ The following common **vi** commands are not available in **a2vimode**, but have
 | **S** | **CC** | re-type the line from scratch |
 | **A** | **$A** | insert at the end of the line |
 
+## Moving Around in a Line
+
+To move around in the line you're editing (perhaps to start inserting your typing somewhere else, or to fix a typo), you must enter **normal** mode, by pressing `TAB` (or `ESC`, but that is *not recommended* on an unenhanced Apple //e with the 80-column firmware active due to some... "interesting" input firmware differences). You will (in most situations) see the prompt character change to a `-` while in **normal** mode, as a clue that any key you type will not be inserted, but instead perform some special function (if one is assigned to that key).
+
+Once in **normal** mode, you can use the `H` and `L` keys to move backward or forward by one character. If you're not feeling very adventurous and don't wish to learn more about some of the very cool features available within **normal** mode, this information, together with the knowledge that typing the `I` key will return you to **insert** mode to continue typing things into the line, should really be more than enough to get going.
+
+Other movement keys include `W`, which jumps forward to the next start of a **w**ord (in **a2vimode**, a "word" is any contiguous string of text that is made up of letters or numbers), `B` to jump *backward* to the nearest preceding beginning of a word (which might be beginning of the current word, if the cursor is in one), and `E` to jump forward to the nearest *end* of a word. You can use `0` to jump the cursor to the beginning of the line, and `$` to jump to the end of the line. `^` will jump to the first start of a word in the line (skipping over any leading spaces, or punctuation).
+
+## Delete/Change
+
+The **a2vimode** prompt uses the `D` or `C` keys to perform most deletions. The `D` key stands for **d**elete, while the `C` key stands for **c**hange. On their own, they do not specify *what* will be changed; you must follow those keys with a movement key (see the previous section). For instance, `DL` will delete one character forward, and `DW` will delete all text between the cursor, and the start of the next word.
+
+The `C` key works the same as the `D` key, but instead of **d**eleting, it **c**hanges (by deleting, and then entering **insert** mode to type a replacement to whatever was removed. Generally speaking, `C`*move* is equivalent to `D`*move*`I`. It saves a keystroke.
+
+See the next section for a way to get even more power out of the `C` and `D` commands.
+
 ## Counted/Repeated Commands
 
 Most (but not all) commands can be repeated multiple times, by typing a number before typing the key for that command.
