@@ -13,11 +13,9 @@ An even bigger difference: instead of using the `ESC` key to enter "normal" mode
 
 Be sure to read the list of commands from the [Normal Mode](#normal-mode) section.
 
-## Usage
+## Insert Mode
 
-### Insert Mode
-
-#### Explanation/Description
+### Explanation/Description
 
 **Insert mode** is the name for the mode you are already very familiar with on your Apple \]\[ - the mode where you type things and they are entered into and appear at the prompt. After **a2vimode** is installed, whenever a prompt appears, it begins in "insert" mode. If you never touch the `TAB` (or `ESC`) key (which exits **insert** mode in favor of **normal** mode, your typing experience will be very similar to what you're already familiar with:
 
@@ -40,7 +38,7 @@ And there are a couple of small, additional features:
 
 You can happily spend all of your time in **a2vimode**'s **insert** mode, and never venture forth to explore the power and versatility of **normal** mode - all you have to do is never type `ESC`, `TAB`, or any `CONTROL-` characters without first typing a `CONTROL-V` before them. You may possibly find yourself accidentally in **normal** mode anyway - you'll know because the prompt character (`]` if you're at the AppleSoft or DOS/ProDOS prompt) will become a `-` instead. If you see the `-` in place of the prompt, type `$A` (that's dollar sign, followed by the letter "A") to return to your familiar insert mode, with the cursor placed at the end of input.
 
-#### Special Keys
+### Special Keys
 
 The following keys lhave special meaning in **insert** mode. Some of them perform an action and  then, if the action is successful, will switch to **normal** mode (indicated in the **final mode** column). If you wanted to avoid **normal** mode, don't panic! You can always just type `$A` to get back to insert mode again. All of these keys, except `CONTROL-V`, *also* work when you type them in **normal** mode. One of them (`CONTROL-A`/"auto-number") has an additional feature that can only be used when in **normal** mode. You never *need* to use them to make use of **insert** mode, but you may find them useful.
 
@@ -59,9 +57,9 @@ A few of these keys are *destructive*&mdash;they will destroy the current input 
 | **^L** | **normal** | (Control-L). **Destructive**. Replaces the current input line with the contents of the last line that was entered (with a final carriage-return). **ProDOS**: lines containing ProDOS commands are *not saved* and cannot be retyped with `CONTROL-L`. |
 | **`TAB`<br />`ESC`<br />^I<br />^\[** | **normal** | Leaves **insert** mode and enters **normal** mode. |
 
-### Normal Mode
+## Normal Mode
 
-#### Intro to Normal Mode
+### Intro to Normal Mode
 
 Normal mode is mainly used for navigating around the line&mdash;going forward and backward by characters or words, or to the beginning or end of the input line, so that you can enter new text mid-line, or delete some bits you don't want.
 
@@ -69,7 +67,7 @@ Normal mode is mainly used for navigating around the line&mdash;going forward an
 
 Within Normal Mode, typing a key does *not* insert the corresponding character. To go back to inserting things, you must go back to insert mode by typing the `I` key (which will not be entered); and then you can go back to typing things in as input.
 
-#### Special Keys
+### Special Keys
 
 In Normal Mode, the following keys have meaning:
 | Key | ~ vi key |  Action |
@@ -117,7 +115,7 @@ The following common **vi** commands are not available in **a2vimode**, but have
 | **S** | **CC** | re-type the line from scratch |
 | **A** | **$A** | insert at the end of the line |
 
-#### Counted/Repeated Commands
+## Counted/Repeated Commands
 
 Most (but not all) commands can be repeated multiple times, by typing a number before typing the key for that command.
 
@@ -135,7 +133,7 @@ There is no prompt indication to indicate that a repeat-count is in process. So,
 
 Not every command can be repeated. For instance, `CONTROL-Z`, which prints the **a2vimode** versino number, cannot. Nor can `CONTROL-R`, for **replace** (overwrite) mode, despite its similarities to **insert** mode. Nor `U`, "undo". As a general rule of thumb, if the concept of "repeating" a command doesn't make much chance, it probably doesn't accept a repeat count.
 
-#### Undo
+## Undo
 
 **a2vimode** supports a single level of undo. If you type `U` in normal mode, it will restore the state of the input buffer from before whatever last change you just made. Which includes an undo - so the "redo" command is the same as "undo": just type `U`.
 
@@ -145,7 +143,7 @@ A "save" is performed before a `CONTROL-G`, but *not* before a subsequent `CONTR
 
 A count-repeated command is generally a "single" change. If you type the backspace key 5 times, and then in normal mode type a `U`, only the final backspace will be undone, leaving the previous four deleted single characters permanently gone. *However*, if instead of typing backspace five times, you instead type `5` before a single press of backspace (in **normal** mode), then pressing the `U` key to undo the change will undo all 5 backspaces (since they were performed as part of a single repeated-command form). Similarly, if you type `DW`, and then another `DW` in normal mode, **undo** will only undo the most recently-deleted word, while `D2W` (or `2DW`) performs a two-word deletion that can be undone completely.
 
-#### Retype Last Line
+## Retype Last Line
 
 If you type `CONTROL-L` in either insert or normal mode, the current input line is discarded, and replaced by the last line you entered (but you can undo this change with `U` in normal mode, provided you don't make other intervening changes).
 
@@ -153,11 +151,13 @@ Of course, `CONTROL-L` can *not* restore a line that had been typed *before* **a
 
 **WARNING:** In ProDOS, `CONTROL-L` can *not* restore any line that was recognized as a ProDOS command. This is because, when a user presses the `RETURN` key, ProDOS intercepts it, processes the command, and obliterates the line (sometimes filling it with other things before erasing again) before **a2vimode** even gets to see the keypress! This leaves us with no means to save that line aside. ProDOS does not do this with AppleSoft commands. Apple DOS does not suffer from this defect (Apple DOS *also* siezes the line from us, but it does so after *we* emit the carriage return back out to the screen, so we've had a chance to process the input line by then!).
 
-## Disabling Vi-Mode
+## Other Notes
+
+### Disabling Vi-Mode
 
 To disable **vi-mode**, execute the `IN#0` command.
 
-## 80-Column
+### 80-Column
 
 **NOTE: at the moment, 80-column mode does not work under ProDOS. It isn't fantastic under DOS either, if you're using specifically the unenhanced Apple \]\[e, but should work provided you follow the instructions below closely. Enhanced Apple //e appears to work better.**
 
