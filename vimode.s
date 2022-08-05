@@ -734,6 +734,7 @@ MaybeCtrlG:
 MaybeCtrlL:
     cmp #$8C ; C-L ?
     bne @nf
+    jsr SaveUndoLine
     jsr TypeLastLine
     lda #0
     sta RepeatCounter
@@ -1421,8 +1422,6 @@ NrmMaybeDELorBS:
 NrmMaybeCtrlG:
     cmp #$87 ; C-G
     bne @nf
-    ; save point for undo
-    jsr SaveUndoLine
     ; Fetch a line of BASIC (_if_ we're a BASIC prompt)
     ;  from the number at the start of the buffer
     jsr MaybeFetchBasicLine
@@ -2291,6 +2290,9 @@ MaybeFetchBasicLine:
     jsr GetIsDigit
     bcc @belNoConvert
 @haveDig:
+    ; save point for undo
+    jsr SaveUndoLine
+
     jsr MoveBackWhileDigit
     ; Unset low bits from start of line to first non-space, non-digit
     jsr LineNumberToLow
@@ -2309,7 +2311,7 @@ MaybeFetchBasicLine:
 .if 1
     bcc @bel ; bail, no such line number
 .else
-    ;; I wrote this, but immediaely abandoned it for "go to line at
+    ;; I wrote this, but immediately abandoned it for "go to line at
     ;;  cursor", as otherwise one may mistakenly believe we successfully
     ;;  followed a dangling line number reference
 
