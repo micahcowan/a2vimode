@@ -220,6 +220,20 @@ with the prompt set to **insert** mode, and the cursor positioned to insert your
 
 Note that, besides `F` and `T`, there is one additional command that affects the behavior of the `;` and `,` keys: the `#` command, which jumps to numbers, in a manner similar to how the `W` and `B` commands jump to words. In this mode, `;` and `,` are jumping to individual characters, but to "words" of digits. See [Summoning BASIC Lines](#summoning-basic-lines) for more information on the `#` command.
 
+### Replace Mode ###
+
+Besides **insert** and **normal** mode, there *is* actually a third mode: `CONTROL-R` (from **normal** mode) for **replace** mode. This is a variant of **insert** mode, but **(a)** anything you enter is typed *over* any existing text, replacing it, **(b)** if you backspace, it will restore the original characters from before you typed over them, and **(c)** you cannot backspace to the left of where the cursor was when you entered **replace** mode. As with insert mode, `TAB` (or `ESC`) will return you to **normal** mode.
+
+Example: if you have text like:
+```
+] 10 PRINT "********** HANDY-MAN SIMULATOR 9000 **********"
+```
+If you're in normal mode with the cursor positioned at the first `*`, and you enter five `@`s, the line will then look like:
+```
+] 10 PRINT "@@@@@***** HANDY-MAN SIMULATOR 9000 **********"
+```
+(You could *also* use a repeat-command: `5R@`.)
+
 ## Other Notes
 
 ### Disabling Vi-Mode
