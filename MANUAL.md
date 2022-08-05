@@ -78,16 +78,24 @@ In Normal Mode, the following keys have meaning:
 | **0** | **0** | move to the beginning of input |
 | **^** | **^** | move to the first "word character" at the beginning of input |
 | **$** | **$** | move to past the end of input |
+| **F** | **f** | Read a character from the keyboard, and jump to next instance of it in line. See [Jump To Character](#Jump-To-Character) |
+| **T** | **t** | Read a character from the keyboard, and jump to *just before* the next instance of it in line. See [Jump To Character](#Jump-To-Character) |
+| **#** |       | jump forward to next number on the line. See [AppleSoft Integration Features](#AppleSoft-Integration-Features) and [Jump To Character](#Jump-To-Character) |
+| **;** | **;** | repeat jump-to-char or jump-to-number, forward. See [Jump To Character](#Jump-To-Character) |
+| **,** | **,** | repeat jump-to-char or jump-to-number, backward. See [Jump To Character](#Jump-To-Character) |
 | **I** | **i** | return to insert mode (start typing into input) |
 | **A** | **a** | return to insert mode, inserting *after* the current character |
+| **^R** | **R** | **replace**/overwrite mode. See [Replace Mode](#Replace-Mode) |
 | **[BS]** | **[BS]** | (left-arrow/backspace, or `DEL`) delete back a character |
 | **X** | **x** | delete *forward* a character |
 | **S** | **s** | delete forward a character, then enter insert mode. ("substitute") |
+| **R** | **r** | reads a character from the keyboard, and replaces the current character under the cursor with that character. Has no effect (other than reading a keypress) past the end of the line |
 | **0-9** | **0-9** | specify a repeat count&mdash;e.g., `3W` moves forward three words. |
 | **D***move* | **d***move* | delete to next movement&mdash;`D2B` deletes backwards two words;<br />`D12L` deletes the next 12 characters (`12X` also works) |
 | **C***move* | **c***move* | ("change"-movement). Delete to next movement, then enter insert mode.<br />`CE`: type a replacement for the next word |
 | **DD** | **dd** | delete the line, remain in normal mode |
 | **CC** | **cc** | delete the line and enter insert mode to begin again |
+| **U** | **u** | undo last change. See [Undo](#Undo). |
 | **^A** |   | (Control-A) "auto-number". Prefixes line numbers at the current and future input lines. Type again to disable. Also works in insert mode (and remains in insert). See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features) for additional uses in normal mode. |
 | **^G** |   | (Control-G) "go to". **Destructive**. If the cursor is at a number, it will throw away the current line contents and replace them with the contents of the line whose number is the same as the one your cursor is on (if it exists). Also works in insert mode (leaves in normal mode). Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
 | **^N** |   | (Control-N). **Destructive**. Goes to the program line in AppleSoft that comes after the current one. If **Control-G** was never typed, and the current line has no line number at the start of it, does nothing. Also works in insert mode (leaves in normal mode). Does not work if we're not at the AppleSoft prompt. See the section on [AppleSoft Integration Features](#AppleSoft-Integration-Features). |
