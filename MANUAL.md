@@ -202,6 +202,24 @@ Automatic line-number generation will continue until
 
 If you are in **normal** mode, and type a number before executing `CONTROL-A`, then it is handled specially. Normally, prefixing a normal-mode command with a number will repeat that command the specified number of times (for those commands that support it). With `CONTROL-A`, it will instead set the auto-increment interval. For example, if you type `100` `CONTROL-A`, then line numbers will be generated in successive multiples of 100, rather than 10. If this technique is used when the current line already has a line number at the start, that number will be removed, and replaced with one that conforms to the new formula (the replacing number will still be generated based on the last line-number seen on a previously-completed input line).
 
+### Jump-to-Char
+
+In **normal** mode, typing the `F` key followed by another character, will jump forward to the next occurrance of that character (if found). Afterwards, the `;` key will jump forward to the next occurrance after that (without having to retype `F` plus the character), and `,` will jump backwards. In *real* vi, you would use lowercase **f** to move forward and uppervase **F** to move back, with **;** and **,** reversing the direction, but in **a2vimode**, since distinguishing lowercase and uppercase commands is not supported (so that it may run on Apple \]\[+ and prior machines), only the forward direction is supported. zso to search *back* for a character (say, `X`), you must first type `F` and then `X`, and then type `,` once or twice to move back.
+
+There is also the `T` command, which works the same way as `F`: you type `T` and then any other character; but instead of jumping directly to the next character, it jumps to immediately *before* that character. `;` and `,` then move forward and backward to the "just befores" of that character.
+
+This can be particularly useful in combination with the `D` (delete) or `C` (change) commands. For example, with the following line:
+```
+] PRINT "WELCOME TO YOUR DOOM!!!"
+```
+If you wish to replace the contents of the string literal (the text between the two double-quotes (`"`)), and the cursor is at the beginning of the prompt, then you could type (in **normal** mode): `WCT"`. The `W` moves the cursor to the next **w**ord-beginning (which in **a2vimode** means string-of-alphanumeric-characters), which is the `W` of `WELCOME`. The `C` means to **c**hange (delete and retype) the text that falls under the next movement, and `T"` moves to just-before the next double-quote. So the line becomes:
+```
+] PRINT ""
+```
+with the prompt set to **insert** mode, and the cursor positioned to insert your typed text between the two double-quotes.
+
+Note that, besides `F` and `T`, there is one additional command that affects the behavior of the `;` and `,` keys: the `#` command, which jumps to numbers, in a manner similar to how the `W` and `B` commands jump to words. In this mode, `;` and `,` are jumping to individual characters, but to "words" of digits. See [Summoning BASIC Lines](#summoning-basic-lines) for more information on the `#` command.
+
 ## Other Notes
 
 ### Disabling Vi-Mode
