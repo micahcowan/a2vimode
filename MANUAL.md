@@ -133,6 +133,18 @@ Finally, a "repeat count" before the `CONTROL-A` ("autonumber") command has a sp
 
 There is no prompt indication to indicate that a repeat-count is in process. So, if you accidentally type a `3` before entering insert mode with `I`, then when you're done typing and return to normal mode, you may be surprised to find your insertion has been repeated! If this occurs, don't panic, just type the `U` (undo) command and type it again. If you suspect you may have typed a digit by accident before a command that you don't want to repeat, you should try typing `TAB` (or `ESC` a few times (harmless when you're already in normal mode) to cancel any repeat count.
 
+Not every command can be repeated. For instance, `CONTROL-Z`, which prints the **a2vimode** versino number, cannot. Nor can `CONTROL-R`, for **replace** (overwrite) mode, despite its similarities to **insert** mode. Nor `U`, "undo". As a general rule of thumb, if the concept of "repeating" a command doesn't make much chance, it probably doesn't accept a repeat count.
+
+#### Undo
+
+**a2vimode** supports a single level of undo. If you type `U` in normal mode, it will restore the state of the input buffer from before whatever last change you just made. Which includes an undo - so the "redo" command is the same as "undo": just type `U`.
+
+Now for more detail on what is considered a "single" change. First, if you're in **insert** mode, this entire insertion section up until you type `TAB` (or `ESC`) to enter **normal** mode, will generally be considered a single change. The main exception is that if you use a special key like `CONTROL-G` to load a line from the current AppleSoft program, or `CONTROL-L` to replace the line with the last one that was typed, the current state of input is "saved" for a later undo just prior to executing those commands.
+
+A "save" is performed before a `CONTROL-G`, but *not* before a subsequent `CONTROL-P` (previous BASIC line) or `CONTROL-N` (next BASIC line). If you type `CONTROL-P` or `CONTROL-N` *without* having typed a `CONTROL-G` yet on that prompt, it will "save" before those, but not on subsequent ones. The general idea is that `U` should "undo" to the state the line was in before the user started navigating around to &amp; editing different lines in BASIC.
+
+A count-repeated command is generally a "single" change. If you type the backspace key 5 times, and then in normal mode type a `U`, only the final backspace will be undone, leaving the previous four deleted single characters permanently gone. *However*, if instead of typing backspace five times, you instead type `5` before a single press of backspace (in **normal** mode), then pressing the `U` key to undo the change will undo all 5 backspaces (since they were performed as part of a single repeated-command form). Similarly, if you type `DW`, and then another `DW` in normal mode, **undo** will only undo the most recently-deleted word, while `D2W` (or `2DW`) performs a two-word deletion that can be undone completely.
+
 ## Disabling Vi-Mode
 
 To disable **vi-mode**, execute the `IN#0` command.
