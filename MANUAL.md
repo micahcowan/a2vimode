@@ -1,15 +1,31 @@
 # User Manual for a2vimode
 
-## Design Goals
+## Introduction
+
+Welcome to **a2vimode**! This software replaces the standard input prompt (called `GetLn` or `GETLN` in source listings of the Apple \]\[ firmware), with a version that offers full, advanced line-editing features, along with conveniences for navigating and coding in AppleSoft.
+
+Its keybindings and featureset are based on the "vi-mode" keybindings available in **bash** and other Bourne shells (support for **set -o vi** is in fact mandated for **sh** by the POSIX standard), which of course are in turn based on the Unix editor known as **vi**.
+
+Often, users find themselves confused or taken aback by **vi**'s "modal editing" paradigm—wherein **vi** separates editing into modes such as **insert**, where typing characters inserts them into the line being input, and so-called **normal** mode, where ordinary key characters like **w** and **h** are used, not to insert themselves as text, but to navigate within the line, or even to make multiple-character deletions or changes to the line. This modal-editing style is unfamiliar to those whoa re accustomed to editors *always* being in "insert" mode, so that typing an **a** virtually always results in an **a** being inserted into the typed line.
+
+But **vi**'s modal editing feature offers some distinct advantages to making the same keys mean the same thing at all times:
+ - Because **normal** mode provides an opportunity to use ordinary keys to perform special commands, traditional **vi** (and a shell's vi-mode) tends to avoid the use of key modifiers (like *control-*, *alt-*, or *meta-*) to invoke special functions. This means less stretching-your-fingers to hold down a key with one finger while striking another with another.
+ - Since key modifiers are seldom involved, it makes it easier to "chain" commands into each other. For instance, in **vi**'s **normal** mode, the **d** key is used to **d**elete something. But *what* it is that you're deleting is left open, until you chain that **d** into a command that moves the cursor—then the **d** command will delete everything between where the cursor was at the start, to where it moved to in the (sub)command. Command-chaining looks like this: you can type a `w` to move the cursor to the beginning of the next word. You can type `3w` to advance the cursor by *three* word starts. And you can type `d3w` to *delete* to three words ahead.
+ - With two keypresses, you can set up the **;** and **,** keys to jump around to the next or previous occurrance of any arbitrary character. In **bash**, this is especially useful for jumping between slash (`/`) characters in a lengthy filepath (this is the main reason why **a2vimode**'s author prefers to use **vi**-mode in his Unix shells); in **a2vimode** it is handy for jumping around to different `,`-separated fields of a `DATA` statement, for different `:`-separate statements on a long line, and (in combination with **d** or **c**) for quickly deleting the space between two double-quote (`"`) characters of a string. See the [Jump-to-Char](#jump-to-char) section for examples and usage information for these commands.
+
+## Design Goals/Differences From Vi
 
 The primary design goals, which are in fact to some degree in conflict:
- 1. Be as similar to vi(/vim) controls as practical
- 1. Be as capable of working on an Apple \]\[+ as an Apple //e
- 1. Be written with 80-column support in mind
+ 1. Be as similar to vi(/vim) controls as practical—or more precisely, to the vi-mode controls in **bash** and other Bourne shells that offer it.
+ 1. Be as capable of working on an Apple \]\[+ as an Apple //e.
+ 1. Be written with 80-column support in mind.
+ 1. Potentially destructive commands should be control-keys, to reduce chances of accidental invocation.
 
-Because of the limitations of goal #2, there is one major set of differences between our controls, and those in vi: there are no lowercase controls. You are welcome to type your navigation commands out in lowercase, but they will behave exactly the same as typing capitals. For related reasons, many capital-letter commands you may be accustomed to from **vi**, have the behavior of their *lowercase* equivalent.
+Because of the limitations of goal #2, there is one major set of differences between our controls, and those in vi: there are no lowercase controls. You are welcome to type your navigation commands out in lowercase, but they will behave exactly the same as typing capitals. For related reasons, the majority of  commands you may be accustomed to from **vi** that are expressed by *lowercase letters*, instead use *either* case in **a2vimode**. Many of those keys have, in **vi**, related keys that do slightly different things when expressed in uppercase; in **a2vimode** these modified versions of the commands either don't exist, or use a different key to activate (for instance, the "replace-mode" command in **vi** uses **R**; but in **a2vimode**, `CONTROL-R` is used instead).
 
-An even bigger difference: instead of using the `ESC` key to enter "normal" mode, you should instead use the `TAB` key. Actually, the `ESC` key *will work* if you use it, at least in 40-column mode&mdash;but in 80-column mode on an unenhanced Apple \]\[e it *won't*, because the 80-col firmware intercepts it, and it will likely screw up your prompt's display. The *enhanced* Apple //e and the Apple //c do not suffer this issue.
+An even bigger difference: instead of using the `ESC` key to enter "normal" mode, you should instead use the `TAB` key. Actually, the `ESC` key *will work* if you use it, at least in 40-column mode—but in 80-column mode on an unenhanced Apple \]\[e it *won't*, because the 80-col firmware intercepts it, and it will likely screw up your prompt's display. The *enhanced* Apple //e and the Apple //c do not suffer this issue.
+
+Goal #4 is why `CONTROL-N` and `CONTROL-P` are used to traverse lines of BASIC, instead of `j` and `k`, which would be natural to **vi**. Because of limited memory, **a2vimode** does not maintain buffers that hold editing history, apart from an undeo buffer, and the last line that was completed. So it is not possible to edit a line of BASIC, and traverse upwards to see a different line of BASIC, and then return to the line that was being edited to continue as it was: traversing lines of BASIC *destroys* the line currently being edited, and so activating those commands via `j` and `k` would be inappropriate—*particularly* when their neighboring keys `h` and `l` are used very frequently, to move forward and back by a single character.
 
 Be sure to read the list of commands from the [Normal Mode](#normal-mode) section.
 
@@ -29,7 +45,7 @@ Some differences you may notice:
  * When you backspace over a character, it is removed, and is no longer visible. Thus, you cannot use the right-arrow key to re-insert just-deleted characters.
  * You may also use the `DEL` key to erase characters.
  * If you type a backspace when you are all the way to the left of your line, the cursor just stops there - it does not reprompt on a new line.
- * Some control characters you may be used to typing in insert mode&mdash;notably, `CONTROL-I` and `CONTROL-P`, both of which are used at the prompt in the firmware Monitor program as equivalents to BASIC's `IN#` and `PR#` commands&mdash;do not work as you might expect. When **a2vimode** is active, you must first type `CONTROL-V`, and *then* type the other control character you wish to insert.
+ * Some control characters you may be used to typing in insert mode—notably, `CONTROL-I` and `CONTROL-P`, both of which are used at the prompt in the firmware Monitor program as equivalents to BASIC's `IN#` and `PR#` commands—do not work as you might expect. When **a2vimode** is active, you must first type `CONTROL-V`, and *then* type the other control character you wish to insert.
 
 And there are a couple of small, additional features:
 
@@ -44,7 +60,7 @@ You can happily spend all of your time in **a2vimode**'s **insert** mode, and ne
 
 The following keys lhave special meaning in **insert** mode. Some of them perform an action and  then, if the action is successful, will switch to **normal** mode (indicated in the **final mode** column). If you wanted to avoid **normal** mode, don't panic! You can always just type `$A` to get back to insert mode again. All of these keys, except `CONTROL-V`, *also* work when you type them in **normal** mode. One of them (`CONTROL-A`/"auto-number") has an additional feature that can only be used when in **normal** mode. You never *need* to use them to make use of **insert** mode, but you may find them useful.
 
-A few of these keys are *destructive*&mdash;they will destroy the current input of the line, replacing it with something else. If you type one of these by accident, try typing `TAB` followed by `U$A`. The `TAB` enters **normal** mode, the `U` activates the **undo** feature, and `$A` repositions the cursor at the end of the line, and re-enters **insert** mode.
+A few of these keys are *destructive*—they will destroy the current input of the line, replacing it with something else. If you type one of these by accident, try typing `TAB` followed by `U$A`. The `TAB` enters **normal** mode, the `U` activates the **undo** feature, and `$A` repositions the cursor at the end of the line, and re-enters **insert** mode.
 
 | Key | Final Mode | Description |
 | --- | --- | --- |
@@ -63,7 +79,7 @@ A few of these keys are *destructive*&mdash;they will destroy the current input 
 
 ### Intro to Normal Mode
 
-Normal mode is mainly used for navigating around the line&mdash;going forward and backward by characters or words, or to the beginning or end of the input line, so that you can enter new text mid-line, or delete some bits you don't want.
+Normal mode is mainly used for navigating around the line—going forward and backward by characters or words, or to the beginning or end of the input line, so that you can enter new text mid-line, or delete some bits you don't want.
 
 (Why is it called *normal* mode if the prompt *normally* starts in *input* mode? Because in **vi** it *is* the normal mode, and is called that, and while for our purposes it might be more accurate to call it "command mode" or "movement mode", "normal mode" is still what I expect is the least-confusing way to refer to it.) 🙂
 
@@ -94,8 +110,8 @@ In Normal Mode, the following keys have meaning:
 | **X** | **x** | delete *forward* a character |
 | **S** | **s** | delete forward a character, then enter insert mode. ("substitute") |
 | **R** | **r** | reads a character from the keyboard, and replaces the current character under the cursor with that character. Has no effect (other than reading a keypress) past the end of the line |
-| **0-9** | **0-9** | specify a repeat count&mdash;e.g., `3W` moves forward three words. See [Counted/Repeated Commands](#Counted-RepeatedCommands) |
-| **D***move* | **d***move* | delete to next movement&mdash;`D2B` deletes backwards two words;<br />`D12L` deletes the next 12 characters (`12X` also works) |
+| **0-9** | **0-9** | specify a repeat count—e.g., `3W` moves forward three words. See [Counted/Repeated Commands](#Counted-RepeatedCommands) |
+| **D***move* | **d***move* | delete to next movement—`D2B` deletes backwards two words;<br />`D12L` deletes the next 12 characters (`12X` also works) |
 | **C***move* | **c***move* | ("change"-movement). Delete to next movement, then enter insert mode.<br />`CE`: type a replacement for the next word |
 | **DD** | **dd** | delete the line, remain in normal mode |
 | **CC** | **cc** | delete the line and enter insert mode to begin again |
@@ -177,7 +193,7 @@ If the cursor is at the start of the line (on the `1` of the line number `100`),
 
 If the cursor were at the end of the line, you would still type a `#`. However, the cursor would not hove for this first `#`, because that is a forward-moving command. But if you then follow up by typing `,`. the cursor will move back to the previous start-of-a-number (one or two characters, to the `3` of `GOTO 30`). Typing `,` once more would bring it to the `500` of `GOSUB 500` once more.
 
-If you were to type `CONTROL-G` while the cursor is located at the `10` of `A<>10`, **a2vimode** would *still* attempt to summon line 10 of the program, even though in this context it does not represent a line number. **a2vimode** does not process the syntax of the line in any way&mdash;it only recognizes whether or not it is at a number.
+If you were to type `CONTROL-G` while the cursor is located at the `10` of `A<>10`, **a2vimode** would *still* attempt to summon line 10 of the program, even though in this context it does not represent a line number. **a2vimode** does not process the syntax of the line in any way—it only recognizes whether or not it is at a number.
 
 **Note:** the `;` and `,` keys have a general meaning of "continue jumping to the thing that was asked for"; when preveded by other commands besides `#` (`T` or `F`), they will jump around to whatever character was specified, and not arbitrary numbers. See the [Jump-To-Char](#Jump-To-Char) section for more information.
 
