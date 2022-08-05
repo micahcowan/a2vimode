@@ -38,6 +38,8 @@ And there are a couple of small, additional features:
 
 You can happily spend all of your time in **a2vimode**'s **insert** mode, and never venture forth to explore the power and versatility of **normal** mode - all you have to do is never type `ESC`, `TAB`, or any `CONTROL-` characters without first typing a `CONTROL-V` before them. You may possibly find yourself accidentally in **normal** mode anyway - you'll know because the prompt character (`]` if you're at the AppleSoft or DOS/ProDOS prompt) will become a `-` instead. If you see the `-` in place of the prompt, type `$A` (that's dollar sign, followed by the letter "A") to return to your familiar insert mode, with the cursor placed at the end of input.
 
+**NOTE:** This "prompt-character iransformation" does not take place in all situations, because not all prompts have a "prompt character". AppleSoft's "direct mode" uses `]`, and the Monitor uses `*`. But a BASIC program, for example, does not use a "prompt character" for the `INPUT` command. It might *look* like it does, because most of the time the prompt will begin with a `?`, and if you type input that isn't accepted, it'll re-prompt with another `?`. But programatically, `INPUT` sets the prompt character to "empty". One way you can tell the difference is to type `CONTROL-X`: if you see a prompt character again on the next line after a `CONTROL-X`, that's a "real" prompt character. With `INPUT`, you get nothing there. Anyway, in situations like that, **a2vimode** won't replace the prompt character with a temporary `-`, because it can't tell whether there's a character that's appropriate to replace like that.
+
 ### Special Keys
 
 The following keys lhave special meaning in **insert** mode. Some of them perform an action and  then, if the action is successful, will switch to **normal** mode (indicated in the **final mode** column). If you wanted to avoid **normal** mode, don't panic! You can always just type `$A` to get back to insert mode again. All of these keys, except `CONTROL-V`, *also* work when you type them in **normal** mode. One of them (`CONTROL-A`/"auto-number") has an additional feature that can only be used when in **normal** mode. You never *need* to use them to make use of **insert** mode, but you may find them useful.
@@ -155,9 +157,9 @@ Of course, `CONTROL-L` can *not* restore a line that had been typed *before* **a
 
 This software contains a few features that are only available for use when the prompt is recognized as the direct AppleSoft command prompt (where commands, and lines of BASIC code, may be entered):
 
- - You can [summon any line of the BASIC program](#summoning-basic-lines) to be viewed or edited at the prompt
+ - You can [summon any line of the BASIC program](#summoning-basic-lines) to be viewed or edited at the prompt.
  - You can [traverse forward or backward](#traversing-basic), a line at a time, through the BASIC program.
- - You can activate, deactivate, and adjust auto-incremented line numbers
+ - You can activate, deactivate, and adjust [auto-incremented line numbers](#auto-incremented-line-numbers).
 
 **NOTE:** Use of these features may expose **a2vimode** to a greater risk of crashing. If the internal structure of the BASIC program listing is corrupted or compromised, using the line-summoning or traversing features could wind up reading arbitrary locations in memory and trying to interpret them inappropriately (of course, the same results would occur by running the AppleSoft `LIST` command as well). In theory, there may also be some risk of the auto-incremented lines feature trigging a math overflow or other error, which would crash and disable **a2vimode**, requiring you to run it again to restore your vi-mode prompt. It is also possible to corrupt or manipulate BASIC's line storage in such a way as to cause **a2vimode** to enter an infinite loop as it tries to summon a line (you can break out with `CONTROL-RESET`, and **a2vimode** would then need to be run again).
 
@@ -186,6 +188,19 @@ You may wonder why `CONTROL-G` uses actual input in the line, instead of [the "r
 The `CONTROL-N` and `CONTROL-P` keys are used to move forward or backward through lines of the current BASIC program. If a line of BASIC was summoned to the current prompt, then they will move relative to the summoned line.
 
 If no line was summoned yet into the current prompt, then **a2vimode** will check to see if the last line you typed started with a line number. If it did, then `CONTROL-P` will summon that line back to the prompt, and `CONTROL-N` will summon the line that follows it in the program listing (if there is one).
+
+### Auto-Incremented Line Numbers
+
+If you type `CONTROL-A` (in either mode), a line number will be inserted at the start of the line. By default, the first line number generated would be 10, and then each successive line would be increased by ten.
+
+Each line number is generated based on the last line number that **a2vimode** saw at the start of a line that the user entered at the main AppleSoft prompt. So, if the auto-increment generates a line starting with the number 220, and you delete that number and rewrite it to 512, and then type out the rest of your line followed by `RETURN`, the next prompt will give you a line beginning with line number 520. This example also serves to point out that each new line number is *not* generated by simply adding ten to the last-seen line number: the number will instead be the next number that is a *multiple* of ten (by default).
+
+Automatic line-number generation will continue until
+ - `CONTROL-A` is typed again (toggle),
+ - a line with no number at the start is typed (commands that are executed by ProDOS are excluded), or
+ - a line at a prompt other than the direct-mode AppleSoft prompt is typed.
+
+If you are in **normal** mode, and type a number before executing `CONTROL-A`, then it is handled specially. Normally, prefixing a normal-mode command with a number will repeat that command the specified number of times (for those commands that support it). With `CONTROL-A`, it will instead set the auto-increment interval. For example, if you type `100` `CONTROL-A`, then line numbers will be generated in successive multiples of 100, rather than 10. If this technique is used when the current line already has a line number at the start, that number will be removed, and replaced with one that conforms to the new formula (the replacing number will still be generated based on the last line-number seen on a previously-completed input line).
 
 ## Other Notes
 
