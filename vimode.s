@@ -1271,6 +1271,15 @@ NrmMaybeCtrlA:
     beq @toggle
     ; Auto-increment by a specific number
     sta SkipBy
+    ; Ensure we "turn on" auto-increment.
+    ; NOTE: this might sem inappropriate without confirming we're
+    ;  currently at a BASIC promt... but if we're not, it gets
+    ;  turned right back off again by MaybeRecordLineNumber,
+    ;  when our input line is submitted. This doesn't avoid the
+    ;  "SkipBy" quantity from being set, but... I think that's
+    ;  actually good.
+    lda #$FF
+    sta AutoNumberModeFlag
     jsr RemoveAutoNumber
     jsr DoAutoNumber
     jmp @finish
