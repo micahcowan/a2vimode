@@ -23,6 +23,7 @@ CHRGOT = $B7
 TXTPTR = $B8
 
 IN = $200
+OURCH = $57B   ; screen-hole that holds the CH value when 80-col fw is active
 TOK_TABLE = $D0D0
 FNDLIN = $D61A ; finds the location of a line from its number
 GETCHR = $D72C ; not to be confused with CHRGET in ZP. Gets chr from (FAC),y
@@ -89,6 +90,7 @@ RealInput:
     ; keyboard input. This immediate-jmp routine exists
     ; to make it easy to swap the keyboard input for some other
     ; KSW routine, as needed.
+RealInputHigh = * + 2
     jmp KEYIN
 .ifdef DEBUG
 PrintState:
@@ -567,6 +569,7 @@ ViModeGetlineInternal:
     jsr COUT
     ; fall through to general initialization, and then on to insert-mode
 ViModeEntry:
+    jsr SavePos
     lda PROMPT
     sta SavePrompt
     ; Clear any idea of BASIC "current line"
@@ -600,9 +603,19 @@ ViModeEntry:
     bne @lp
     ; Set the current line length
     stx LineLength
+.ifndef TESTEOL
     jsr CLREOL ; ensure that everything on our line is actually
                ; in the input buffer, as well as on screen...
                ; by clearing the line out that we're on.
+.else
+    ldy #0
+    lda #$C1
+:   jsr COUT
+    iny
+    cpy #80
+    bne :-
+    jsr EmitYCntBsp
+.endif ; ndef TESTEOL
 .ifdef DEBUG
     ; Pre-fill the buffer when we enter for the first time, to
     ; present an easy playground that tests our latest features
@@ -800,19 +813,15 @@ NoRoomRight:
     ;jsr BELL
     jmp InsertMode
 DoCR:
-    jsr PrintRestOfLine ; jump to end
     jsr SaveTypedLine
-    ; Restore the check for GETLN
-    ; NOTE: this HAS to happen before sending out the CR
-    ; below - believe it or not, DOS hijacks the stack immediately
-    ; after and never lets us return. Not all the time, but for
-    ; some DOS commands: at least "LOAD".
-    ;lda #<CheckForGetline
-    ;sta InputRedirFn
-    ;lda #>CheckForGetline
-    ;sta InputRedirFn+1
-    ;
     jsr MaybeRecordLineNumber
+    ; jsr PrintRestOfLine ; jump to end
+    ; ^ CAN'T DO THAT. If we print stuff that's not the final CR
+    ; after the user has typed CR, DOS doesn't believe that a DOS
+    ; command has been typed. So we restore positional info instead.
+    ; More fragile, but we only do it here so hopefully fine.
+    jsr RestorePos
+    jsr CLREOL
     ;
     ldx LineLength
     lda #$8D ; CR
@@ -954,8 +963,52 @@ PrintRestOfLine:
     cpx LineLength
     bne @lp
 @out:
+    ; Save away position info, so we can use it to jump
+    ;  straight to end of line after a carriage return
+    ;  (when no other printing than the carriage return can
+    ;  be permitted, because DOS will only check for a command
+    ;  if the CR immediately follows user input)
+    jsr SavePos
+.ifndef TESTEOL
     jsr CLREOL
+.endif
     ldx SaveX
+    rts
+SavePos:
+    lda CH
+    sta EolCH
+    lda CV
+    sta EolCV
+    lda BASE
+    sta EolBASL
+    lda BASE+1
+    sta EolBASH
+    lda OURCH ; 80-col CH (may not be, if 80-col card not installed)
+    sta EolOURCH
+    rts
+RestorePos:
+    ;; LOTS OF OVERWRITTEN OPERANDS HERE!
+EolCH = * + 1
+    lda #$00
+    sta CH
+EolCV = * + 1
+    lda #$00
+    sta CV
+EolBASL = * + 1
+    lda #$00
+    sta BASE
+EolBASH = * + 1
+    lda #$00
+    sta BASE+1
+    ;; Is 80-column firmware active? Inspect the high-byte of our notion
+    ;;  of RealInput
+    lda RealInputHigh
+    cmp #$C3
+    bne RestorePosSkip80
+EolOURCH = * + 1
+    lda #$00
+    sta OURCH
+RestorePosSkip80:
     rts
 PrintYNextChars:
     stx SaveX
@@ -1062,6 +1115,7 @@ Backspace:
     jsr COUT
     lda #$88
     jsr COUT
+    jsr SavePos ; save info about where EOL is on screen (needed by DoCR)
     jsr BackspaceFromEOL
     rts
 EnterNormalMode:
