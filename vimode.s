@@ -2245,6 +2245,12 @@ MyRDKEY:
     bne @out
     ; We got played! ...Go ahead and play along, restart the prompt.
 
+    ; Turn off auto-incremented line numbers - the user clearly
+    ;  just typed a line without a number... even if we never got
+    ;  to see it.
+    lda #0
+    sta AutoNumberModeFlag
+
     ; Augh! What do we do here? We can't RTS and keep processing as
     ; usual (we could have come from ReadDelay, for instance),
     ; but neither can we just jmp to ViModeGetline - we have an unknown
@@ -2718,9 +2724,9 @@ MaybeRecordLineNumber:
     rts ;
 @no:
     ; record an indication that no line number was entered
-    lda #$FF
-    sta LastEnteredLineNum
-    sta LastEnteredLineNum+1
+    ;lda #$FF
+    ;sta LastEnteredLineNum
+    ;sta LastEnteredLineNum+1
     ; and also disable any autonumber mode
     lda #0
     sta AutoNumberModeFlag
@@ -3122,6 +3128,14 @@ DoAutoNumber:
     ldx #$90 ; exponent = 2^16
     sec
     jsr FLOAT_2
+.if 0
+    ;; DELETED: this code ensured we jump to the nearest *multiple*
+    ;; of SkipBy. I don't think we want that, though: consider
+    ;;   ] 330
+    ;; then user types {4 C-a} in normal mode. The line number becomes:
+    ;;   ] 332
+    ;; ...which probably isn't what we wanted.
+
     ; Move from FAC to ARG, so we can divide it in a bit
     jsr MOVAF
     ; Grab SkipBy, convert to float
@@ -3161,6 +3175,7 @@ DoAutoNumber:
     ;  from before
     lda FAC
     jsr FMULTT
+.endif ; deleted "next multiple" logic
     ;; Call AppleSoft's number conversion routine
     jsr FOUT ; puts it at bottom of stack ($100)
     ;; Make space for number (plus spave) at start of buffer
