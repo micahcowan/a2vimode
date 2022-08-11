@@ -25,10 +25,11 @@ The [AppleSoft Integration Features (manual)](MANUAL.md#AppleSoft-Integration-Fe
 ## Usage
 
 For instructions on how to use **a2vimode**, please see the
-[manual](MANUAL.md)
+[manual](MANUAL.md). You are *highly recommended* to read the manual.
 
-instructions are *necessary*&mdash;particularly if you've never used
-vi-mode, or the **vi** text editor, before.
+But here are the quick-and-dirty instructions, the bare minimum necessary to us this software, while ignoring a huge number of useful tools, movements, and commands in **a2vimode** (these instructions are also printed on boot, from either the DOS or ProDOS software disks):
+
+After typing some input, press the `TAB` key, then use `H` and `L` to move the cursor around, and type `I` to insert more text at the current position.
 
 ## Building notes
 
@@ -43,10 +44,10 @@ a2vimode's Makefile assumes all of these tools are accessible from the current `
 
 ## Problems and Short-Comings
 
- * The ability to go and grab content off the screen is lost now.
- * ProDOS support is somewhat fragile, as it doesn't currently know how to protect itself properly from BASIC programs running under ProDOS. On DOS, it sets `HIMEM:` to protect itself.
- * 80-column mode on an *unenhanced* Apple \]\[e is somewhat fragile, and occasionally annoying. This is due chiefly to the fact that 80-col `RDKEY` automatically a number of things that the standard firmware doesn't, and I wish it wouldn't. I may resolve these issues by avoiding `RDKEY` in the future, but for now I'm stuck with it.
- * Due to the way **a2vimode** detects and wrests away control from the firmware `GETLN` routine, there is a small-but-not-zero chance of mistaking some values on the stack for return addresses, that aren't, and consequently breaking some function up the call stack.
+ * The ability to go and grab content off the screen is lost now, though the "recall last-typed line" and AppleSoft-integration features mitigate that loss somewhat (see the [manual](MANUAL.md)). Equivalent functionality is planned for a future release.
+ * 80-column mode on an *unenhanced* Apple \]\[e is somewhat fragile, and occasionally annoying. This is due chiefly to the fact that 80-col `RDKEY` steals the `ESC` keypress, and I wish it wouldn't. I may resolve these issues by avoiding `RDKEY` on that specific platform in the future, but for now I can only recommend that you never use `ESC`, and always use `TAB`, to enter "normal" mode.
+ * The software only takes up about 5k of RAM, but due to its placement, makes about 13k of RAM unavailable to BASIC. This will be improved in a future release.
+ * Due to the way **a2vimode** detects and wrests away control from the firmware's `GETLN` routine, there is a small-but-not-zero chance of mistaking some values on the stack for return addresses, that aren't, and consequently breaking some function up the call stack.
 
 ## How Does It Work?
 
@@ -56,4 +57,4 @@ a2vimode's Makefile assumes all of these tools are accessible from the current `
 
 **Q: "Micah, why on earth did you choose *vi* as the model? Why not use a single mode for moving *and* inserting?**
 
-A: Because it's *my* hackfest project, and having vi-mode in the prompt is more fun for me! 😉 Plus, I hope to eventually add support for vi's `f`, `t`, `,`, and `;` commands (which a surprising number of vi users appear not to know about, but are among my most-used commands!), and using those definitely warrants having a separate movement mode, in my opinion.
+A: Because it's *my* hackfest project, and having vi-mode in the prompt is more fun for me! 😉 Plus, I've included support for vi's `f`, `t`, `,`, and `;` commands (which a surprising number of vi users appear not to know about, but are among my most-used commands! - [see the manual](MANUAL.md#jump-to-char) for an explanation of these), and using those definitely warrants having a separate movement mode, in my opinion.
