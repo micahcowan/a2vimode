@@ -110,7 +110,7 @@ In Normal Mode, the following keys have meaning:
 | **X** | **x** | delete *forward* a character |
 | **S** | **s** | delete forward a character, then enter insert mode. ("substitute") |
 | **R** | **r** | reads a character from the keyboard, and replaces the current character under the cursor with that character. Has no effect (other than reading a keypress) past the end of the line |
-| **0-9** | **0-9** | specify a repeat count—e.g., `3W` moves forward three words. See [Counted/Repeated Commands](#countedrepeated-ommands) |
+| **0-9** | **0-9** | specify a repeat count—e.g., `3W` moves forward three words. See [Counted/Repeated Commands](#countedrepeated-commands) |
 | **D***move* | **d***move* | delete to next movement—`D2B` deletes backwards two words;<br />`D12L` deletes the next 12 characters (`12X` also works) |
 | **C***move* | **c***move* | ("change"-movement). Delete to next movement, then enter insert mode.<br />`CE`: type a replacement for the next word |
 | **DD** | **dd** | delete the line, remain in normal mode |
