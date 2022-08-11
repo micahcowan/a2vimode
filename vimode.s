@@ -24,6 +24,7 @@ TXTPTR = $B8
 
 IN = $200
 OURCH = $57B   ; screen-hole that holds the CH value when 80-col fw is active
+OURCV = $5FB   ; screen-hole that holds the CV value when 80-col fw is active
 TOK_TABLE = $D0D0
 FNDLIN = $D61A ; finds the location of a line from its number
 GETCHR = $D72C ; not to be confused with CHRGET in ZP. Gets chr from (FAC),y
@@ -985,6 +986,9 @@ SavePos:
     sta EolBASH
     lda OURCH ; 80-col CH (may not be, if 80-col card not installed)
     sta EolOURCH
+    lda OURCV ; 80-col CV (maybe not actually needed? I think CV is
+              ;            used. But just in case.)
+    sta EolOURCV
     rts
 RestorePos:
     ;; LOTS OF OVERWRITTEN OPERANDS HERE!
@@ -1008,6 +1012,9 @@ EolBASH = * + 1
 EolOURCH = * + 1
     lda #$00
     sta OURCH
+EolOURCV = * + 1
+    lda #$00
+    sta OURCV
 RestorePosSkip80:
     rts
 PrintYNextChars:
