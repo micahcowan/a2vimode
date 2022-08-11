@@ -1310,7 +1310,6 @@ NormalMode:
     jsr PrintState
 .endif
     jsr MyRDKEY
-    sta NrmLastKey
     ; in our normal mode, lowercase should be converted to upper.
     cmp #$E0    ; < 'a' ?
     bcc @nocvt  ; -> no
@@ -1319,6 +1318,7 @@ NormalMode:
     sec
     sbc #$20
 @nocvt:
+    sta NrmLastKey
 NrmCmdExec:
     bit CaptureFlag ; Are we capturing a movement instead of moving?
     bpl NrmUnsafeCommands   ; -> no, check all commands
