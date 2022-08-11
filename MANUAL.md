@@ -270,12 +270,12 @@ If you're in normal mode with the cursor positioned at the first `*`, and you en
 
 ### Disabling Vi-Mode
 
-To disable **vi-mode**, execute the `IN#0` command.
+To disable **vi-mode**, execute the `IN#0` command, and then type the `RETURN` key twice.
 
 ### 80-Column
 
-**NOTE: at the moment, 80-column mode does not work under ProDOS. It isn't fantastic under DOS either, if you're using specifically the unenhanced Apple \]\[e, but should work provided you follow the instructions below closely. Enhanced Apple //e appears to work better.**
+To use vi-mode in 80-column mode, execute the command `RUN COL80`. To return to 40-column mode (with 80-column firmware inactive), use `RUN COL40`.
 
-To use vi-mode in 80-column mode, first start 80-column mode with `PR#3`, and then `RUN HELLO` to reconnect **vi-mode**. Do not run the `HELLO` program multiple times with 80-column firmware active - if you want to reboot **vi-mode**, do another `PR#3` followed by `RUN HELLO`.
+Note that these are BASIC commands - if you run them while editing a program, you will *lose* the changes you've made. Save your program before running these! A future release will include in-prompt support for switching the 80-column firmware in and out (and also support 40-column mode with the 80-column firmware active).
 
-And don't touch the `ESC` key! Use `TAB` to enter normal mode.
+**WARNING:** On the unenhanced Apple IIe (only), with 80-column firmware active, typing the `ESC` key can seriously interfere with **a2vimode**'s operation. Don't touch the `ESC` key on an unenhanced Apple IIe—always use `TAB` instead! A future release will provide a work-around for the unenhanced Apple IIe, but for now please follow this policy carefully.
