@@ -98,19 +98,19 @@ In Normal Mode, the following keys have meaning:
 | **0** | **0** | move to the beginning of input |
 | **^** | **^** | move to the first "word character" at the beginning of input |
 | **$** | **$** | move to past the end of input |
-| **F** | **f** | Read a character from the keyboard, and jump to next instance of it in line. See [Jump To Character](#Jump-To-Character) |
-| **T** | **t** | Read a character from the keyboard, and jump to *just before* the next instance of it in line. See [Jump To Character](#Jump-To-Character) |
-| **#** |       | jump forward to next number on the line. See [AppleSoft Integration Features](#AppleSoft-Integration-Features) and [Jump To Character](#Jump-To-Character) |
-| **;** | **;** | repeat jump-to-char or jump-to-number, forward. See [Jump To Character](#Jump-To-Character) |
-| **,** | **,** | repeat jump-to-char or jump-to-number, backward. See [Jump To Character](#Jump-To-Character) |
+| **F** | **f** | Read a character from the keyboard, and jump to next instance of it in line. See [Jump-To-Char](#jump-to-char) |
+| **T** | **t** | Read a character from the keyboard, and jump to *just before* the next instance of it in line. See [Jump-To-Char](#jump-to-char) |
+| **#** |       | jump forward to next number on the line. See [AppleSoft Integration Features](#AppleSoft-Integration-Features) and [Jump-To-Char](#jump-to-char) |
+| **;** | **;** | repeat jump-to-char or jump-to-number, forward. See [Jump-To-Char](#jump-to-char) |
+| **,** | **,** | repeat jump-to-char or jump-to-number, backward. See [Jump-To-Char](#jump-to-char) |
 | **I** | **i** | return to insert mode (start typing into input) |
 | **A** | **a** | return to insert mode, inserting *after* the current character |
-| **^R** | **R** | **replace**/overwrite mode. See [Replace Mode](#Replace-Mode) |
+| **^R** | **R** | **replace**/overwrite mode. See [Replace Mode](#replace-mode) |
 | **[BS]** | **[BS]** | (left-arrow/backspace, or `DEL`) delete back a character |
 | **X** | **x** | delete *forward* a character |
 | **S** | **s** | delete forward a character, then enter insert mode. ("substitute") |
 | **R** | **r** | reads a character from the keyboard, and replaces the current character under the cursor with that character. Has no effect (other than reading a keypress) past the end of the line |
-| **0-9** | **0-9** | specify a repeat count—e.g., `3W` moves forward three words. See [Counted/Repeated Commands](#Counted-RepeatedCommands) |
+| **0-9** | **0-9** | specify a repeat count—e.g., `3W` moves forward three words. See [Counted/Repeated Commands](#countedrepeated-ommands) |
 | **D***move* | **d***move* | delete to next movement—`D2B` deletes backwards two words;<br />`D12L` deletes the next 12 characters (`12X` also works) |
 | **C***move* | **c***move* | ("change"-movement). Delete to next movement, then enter insert mode.<br />`CE`: type a replacement for the next word |
 | **DD** | **dd** | delete the line, remain in normal mode |
@@ -211,9 +211,9 @@ If the cursor were at the end of the line, you would still type a `#`. However, 
 
 If you were to type `CONTROL-G` while the cursor is located at the `10` of `A<>10`, **a2vimode** would *still* attempt to summon line 10 of the program, even though in this context it does not represent a line number. **a2vimode** does not process the syntax of the line in any way—it only recognizes whether or not it is at a number.
 
-**Note:** the `;` and `,` keys have a general meaning of "continue jumping to the thing that was asked for"; when preveded by other commands besides `#` (`T` or `F`), they will jump around to whatever character was specified, and not arbitrary numbers. See the [Jump-To-Char](#Jump-To-Char) section for more information.
+**Note:** the `;` and `,` keys have a general meaning of "continue jumping to the thing that was asked for"; when preveded by other commands besides `#` (`T` or `F`), they will jump around to whatever character was specified, and not arbitrary numbers. See the [Jump-To-Char](#jump-to-char) section for more information.
 
-You may wonder why `CONTROL-G` uses actual input in the line, instead of [the "repeat" counter](#Counted-Repeated-Commands), like the autoincrement `CONTROL-A` feature does. Well, one of the reasons is so that you can use the trick we just described with `#`, `;`, and `,`, to choose a new line from a `GOTO` or a `GOSUB`. Another reason is that the command-repeat counter is not *visible* as it is typed, and for a line number it seems worthwhile to see where we are jmping to. Yet another reason is because the repeat counter currently can only be used with numbers whose values are less than 256, and line numbers are frequently much higher than that.
+You may wonder why `CONTROL-G` uses actual input in the line, instead of [the "repeat" counter](#countedrepeated-commands), like the autoincrement `CONTROL-A` feature does. Well, one of the reasons is so that you can use the trick we just described with `#`, `;`, and `,`, to choose a new line from a `GOTO` or a `GOSUB`. Another reason is that the command-repeat counter is not *visible* as it is typed, and for a line number it seems worthwhile to see where we are jmping to. Yet another reason is because the repeat counter currently can only be used with numbers whose values are less than 256, and line numbers are frequently much higher than that.
 
 ### Traversing BASIC
 
@@ -234,7 +234,7 @@ Automatic line-number generation will continue until
 
 If you are in **normal** mode, and type a number before executing `CONTROL-A`, then it is handled specially. Normally, prefixing a normal-mode command with a number will repeat that command the specified number of times (for those commands that support it). With `CONTROL-A`, it will instead set the auto-increment interval. For example, if you type `100` `CONTROL-A`, then line numbers will be generated in successive multiples of 100, rather than 10. If this technique is used when the current line already has a line number at the start, that number will be removed, and replaced with one that conforms to the new formula (the replacing number will still be generated based on the last line-number seen on a previously-completed input line).
 
-### Jump-to-Char
+## Jump-to-Char
 
 In **normal** mode, typing the `F` key followed by another character, will jump forward to the next occurrance of that character (if found). Afterwards, the `;` key will jump forward to the next occurrance after that (without having to retype `F` plus the character), and `,` will jump backwards. In *real* vi, you would use lowercase **f** to move forward and uppervase **F** to move back, with **;** and **,** reversing the direction, but in **a2vimode**, since distinguishing lowercase and uppercase commands is not supported (so that it may run on Apple \]\[+ and prior machines), only the forward direction is supported. zso to search *back* for a character (say, `X`), you must first type `F` and then `X`, and then type `,` once or twice to move back.
 
@@ -252,7 +252,7 @@ with the prompt set to **insert** mode, and the cursor positioned to insert your
 
 Note that, besides `F` and `T`, there is one additional command that affects the behavior of the `;` and `,` keys: the `#` command, which jumps to numbers, in a manner similar to how the `W` and `B` commands jump to words. In this mode, `;` and `,` are jumping to individual characters, but to "words" of digits. See [Summoning BASIC Lines](#summoning-basic-lines) for more information on the `#` command.
 
-### Replace Mode ###
+## Replace Mode ###
 
 Besides **insert** and **normal** mode, there *is* actually a third mode: `CONTROL-R` (from **normal** mode) for **replace** mode. This is a variant of **insert** mode, but **(a)** anything you enter is typed *over* any existing text, replacing it, **(b)** if you backspace, it will restore the original characters from before you typed over them, and **(c)** you cannot backspace to the left of where the cursor was when you entered **replace** mode. As with insert mode, `TAB` (or `ESC`) will return you to **normal** mode.
 
