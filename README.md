@@ -20,6 +20,7 @@ With this software installed, you can:
 
 You will also currently *lose* this feature from the standard Apple \]\[ prompt:
  * including other on-screen text as part of your input
+
 The [AppleSoft Integration Features (manual)](MANUAL.md#AppleSoft-Integration-Features), and the "retype last line" command (`CONTROL-L`) are intended to shore up (and surpass) that feature for some use cases, but you may still find yourself missing it for some other situations. We apologize for the inconvenience.
 
 ## Usage
