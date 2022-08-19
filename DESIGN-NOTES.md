@@ -39,7 +39,19 @@ If the check fails, then we were not called from `GetLn`, and so we just jump to
 
 ## Apple //c Quirks
 
+As mentioned, the call signature through `RdChar` looks different on an Apple //c from on any other Apple II systems. Apple //c `RdChar` is written differently, and `JMP`s to enhanced-firmware routines in the `$Cxxx` range. All of the official Appl ROMs have the same two-call signature in that range, after `GetLn`'s call signature; the popular fan-made //c ROM "4X" has a third call in that range. The //c+ ROMs 5 and 5X were not tested.
+
+The initial release of **a2vimode** at HackFest 2022 (part of KansasFest) did not function on an Apple //c, because it had been developed and tested via emulation on an Apple \]\[+, \]\[e, and "enhanced" //e... but not on //c until immediately prior to release. It was fixed a day or two later.
+
 ## Unenhanced Apple //e Quirks
+
+On most Apple \]\[ machines, the built-in Standard Input routine at the `KSW` hook does not process the `Esc` key specially (that is, you should not be able to move the cursor around the screen for a simple "read-the-keyboard" call).
+
+However, on the unenhanced Apple \]\[e, and if the 80-column firmware is active (whether or not the screen is actually in 80-column mode), the `Esc` key *is* handled specially, and the user can use it to move the cursor around the screen even though it was supposed to be an ordinary keyboard check. This is *particularly* undesirable for **a2vimode**, because it relies on the cursor position remaining stable within the prompt, so that it can update the prompt properly when new input is typed, or characters are deleted. As long as the 80-column firmware's `KSW` routine (`$C305`) is used, there is no way to prevent `Esc` from being specially interpreted, before the prompt has the chance to intercept it.
+
+The workaround so far has been to provide the `Tab` key as an alternate "normal mode" key instead of `Esc`, and recommend its use instead. Of course, an original Apple \]\[ or \]\[+ does not have a `Tab` key, so on such systems one should still use `Esc`.
+
+A future version of **a2vimode** will probably check if the current machine is an unenhanced Apple //e with the 80-column firmware active, and if so, use a custom replacement "keyboard check" routine instead of the standard one, and so avoid the `Esc` problem.
 
 ## DOS Quirks
 
