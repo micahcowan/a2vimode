@@ -2,6 +2,8 @@
 
 This document covers the basic "How It Works" of a2vimode, and also a number of pitfalls encountered, on different hardware and DOS platforms, and the workarounds to them.
 
+**Note:** throughout this document, references are made to ProDOS wrapping `KSW`, or calling the `GetLn` prompt, or modifying the AppleSoft prompt. In actuality, the core ProDOS software does not use the AppleSoft prompt, nor does it provide `KSW` or `CSW` wrappers—this functionality is provided by `BASIC.SYSTEM`, which is an optional system file provided as part of the ProDOS software package. Not all instances of ProDOS will have `BASIC.SYSTEM` installed, and so those instances will not in fact behave as described in this document. However, since ProDOS in those instances will also not be using a prompt to query the user for ProDOS commands, a ProDOS instance that does not include `BASIC.SYSTEM` will also not be using **a2vimode** (though, it could be used to run a program that does use it). Therefore, wherever you see ProDOS mentioned in this document, what we're really referring to is `BASIC.SYSTEM` running on ProDOS.
+
 ## Basic Theory
 
 ### Checking For GetLn
