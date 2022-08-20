@@ -297,7 +297,8 @@ StSvBASE: .word 0
 StSvCSW: .word 0
 StSvCH:.byte 0
 .endif ; DEBUG
-    CheckForGetline:
+
+CheckForGetline:
     ; The vi-mode prompt works by detecting and *replacing* what had
     ; been a call from the firmware `GETLN` routine at `$FD78`.  `GETLN`
     ; isn't hookable, so instead we hook into `KSW` (the input routine),
@@ -513,40 +514,68 @@ StSvCH:.byte 0
     rts
 
 @checkFailed:
+InnerKsw:
     ; Just do an absolutely ordeinary input fetch.
-.ifndef DEBUG
+    ;  EXCEPT, sideline any CR we receive if the prompt asks us to,
+    ;  or emit an immediate CR without actually checking user input,
+    ;  if asked to do that.
+    lda SidelineCrState
+    sta @savedState
+    ldy #0 ; immediately clear SidelineCrState as early as possible,
+           ;  to be very sure it can't be left set when we exit
+    sty SidelineCrState
+    cmp #2
+    bne @notImmediateCr
+    ; We've been instructed to return with a CR immediately.
     lda SaveA
-    ldx SaveX
     ldy SaveY
-    jmp RealInput
-.else
-@reread:
-    ; DEBUG mode.
-    ; We only check for one key: Ctrl-\ to enable the debug status bar.
-    ; Then we print the stack info we just rejected, and check
-    ; keypresses again.
+    sta (BASE),y ; Save orig screen char over flashing cursor
+    lda #$8D
+    ldx SaveX
+    rts ;
+@notImmediateCr:
+.ifdef DEBUG
+    ; Print the status bar if it's on.
     lda StatusBarOn
     bpl :+
     jsr PrintStackTraceFailed
-:
+.endif
+
+@reread:
     lda SaveA
     ldx SaveX
     ldy SaveY
     jsr RealInput
+.ifdef DEBUG
+    ; DEBUG mode.
+    ; We only check for one key: Ctrl-\ to enable the debug status bar.
+    ; Then we print the stack info we just rejected, and check
+    ; keypresses again.
+    cmp #$DC ; \
+    bne @notBackSlash
+    ; \ pressed
     sta SaveA
     stx SaveX
     sty SaveY
-    cmp #$DC ; \
-    bne @done
-    ; \ pressed
     jsr ToggleStatusBar
     jmp @reread
-@done:
-    lda SaveA
-    ldx SaveX
-    ldy SaveY
-    rts
 .endif ; DEBUG
+@notBackSlash:
+    cmp #$8D ; CR
+    bne @notCr
+    ; We received a CR. Have we been asked to sideline it?
+    sty SaveY
+@savedState = * + 1
+    ldy #$00 ; OVERWRITTEN OP
+    beq @yAndOut ; No, just send it out
+    ; Yes, we were asked to sideline it
+    sta SidelinedChar
+    lda #$A0 ; fake char to placate DOS/ProDOS wrapppers
+@yAndOut:
+    ldy SaveY
+@notCr:
+@done:
+    rts
 
 InitViModeAndGetStarted:
     ;lda SaveA - no, this should always be a space, since we cleared.
@@ -555,7 +584,6 @@ InitViModeAndGetStarted:
     ; care the value
     lda #$A0
     rts
-
 ViModeGetline:
     ; Call to here if you want an explicit call to _our_ GETLN.
     ; Print the prompt...
@@ -570,7 +598,6 @@ ViModeGetlineInternal:
     jsr COUT
     ; fall through to general initialization, and then on to insert-mode
 ViModeEntry:
-    jsr SavePos
     lda PROMPT
     sta SavePrompt
     ; Clear any idea of BASIC "current line"
@@ -585,15 +612,7 @@ ViModeEntry:
     sta UndoSavePending
     ; Or "replace mode"
     sta ReplaceModeFlag
-    ; Install direct keyin fn (no GETLN check)
-    ;lda #<RealInput
-    ;sta InputRedirFn
-    ;lda #>RealInput
-    ;sta InputRedirFn+1
-    ; Save our stack position - we need it to help dodge a dirty trick
-    ; from ProDOS (see comments for MyRDKEY).
-    tsx
-    stx SaveS
+    sta SidelineCrState
     ; Fill the inbuf with CRs
     lda #$8D
     ldx #0
@@ -814,19 +833,44 @@ NoRoomRight:
     ;jsr BELL
     jmp InsertMode
 DoCR:
+    jsr PrintRestOfLine ; jump to end
+    jsr CLREOL
     jsr SaveTypedLine
     jsr MaybeRecordLineNumber
-    ; jsr PrintRestOfLine ; jump to end
-    ; ^ CAN'T DO THAT. If we print stuff that's not the final CR
-    ; after the user has typed CR, DOS doesn't believe that a DOS
-    ; command has been typed. So we restore positional info instead.
-    ; More fragile, but we only do it here so hopefully fine.
-    jsr RestorePos
-    jsr CLREOL
     ;
     ldx LineLength
+
+    ; We've now moved both the input cursor and the on-screen cursor
+    ;  safely to the end of the line. It is now safe to "receive"
+    ;  a CR at input. Force that to happen (delayed from the one we
+    ;  sidelined)
+    ldy #2
+    sty SidelineCrState
+    jsr RDKEY
+    ;
+    cmp #$88
+    bne @noRestartPrompt
+    ; If we got here, ProDOS saw the "user" (our delayed KSW) "type"
+    ;  a CR, checked for and found a ProDOS command, executed it,
+    ;  attempted to empty our input buffer by resetting the X-reg,
+    ;  and told us the user just typed a BS, to get us to re-emit the
+    ;  prompt. Be a good boy and do as ProDOS expects.
+
+    ; Turn off auto-incremented line numbers - the user clearly
+    ;  just typed a line without a number... even if we never got
+    ;  to see it.
+    lda #0
+    sta AutoNumberModeFlag
+
+    jsr CROUT ; Send a CR, as GETLN would
+    jmp ViModeGetlineInternal
+@noRestartPrompt:
     lda #$8D ; CR
     sta IN,x ; make damn sure we're locked off with a CR
+    ; If we're running under DOS, and the input buffer contains a DOS
+    ;  command, the following JSR may never return, as DOS will
+    ;  reset the stack pointer. Make sure we do any necessary cleanup
+    ;  BEFORE this point!
     jsr COUT ; ...and emit one, as GETLN would.
     rts
 BackspaceFromEOL:
@@ -964,58 +1008,10 @@ PrintRestOfLine:
     cpx LineLength
     bne @lp
 @out:
-    ; Save away position info, so we can use it to jump
-    ;  straight to end of line after a carriage return
-    ;  (when no other printing than the carriage return can
-    ;  be permitted, because DOS will only check for a command
-    ;  if the CR immediately follows user input)
-    jsr SavePos
 .ifndef TESTEOL
     jsr CLREOL
 .endif
     ldx SaveX
-    rts
-SavePos:
-    lda CH
-    sta EolCH
-    lda CV
-    sta EolCV
-    lda BASE
-    sta EolBASL
-    lda BASE+1
-    sta EolBASH
-    lda OURCH ; 80-col CH (may not be, if 80-col card not installed)
-    sta EolOURCH
-    lda OURCV ; 80-col CV (maybe not actually needed? I think CV is
-              ;            used. But just in case.)
-    sta EolOURCV
-    rts
-RestorePos:
-    ;; LOTS OF OVERWRITTEN OPERANDS HERE!
-EolCH = * + 1
-    lda #$00
-    sta CH
-EolCV = * + 1
-    lda #$00
-    sta CV
-EolBASL = * + 1
-    lda #$00
-    sta BASE
-EolBASH = * + 1
-    lda #$00
-    sta BASE+1
-    ;; Is 80-column firmware active? Inspect the high-byte of our notion
-    ;;  of RealInput
-    lda RealInputHigh
-    cmp #$C3
-    bne RestorePosSkip80
-EolOURCH = * + 1
-    lda #$00
-    sta OURCH
-EolOURCV = * + 1
-    lda #$00
-    sta OURCV
-RestorePosSkip80:
     rts
 PrintYNextChars:
     stx SaveX
@@ -1122,7 +1118,6 @@ Backspace:
     jsr COUT
     lda #$88
     jsr COUT
-    jsr SavePos ; save info about where EOL is on screen (needed by DoCR)
     jsr BackspaceFromEOL
     rts
 EnterNormalMode:
@@ -2190,77 +2185,18 @@ ReadWait:
     pla
     rts
 MyRDKEY:
-    ; ProDOS is a silly bully, and plays games with us that it
-    ; shouldn't.
-    ; Of course, we can hardly complain, since we're playing a silly
-    ; trick on _it_, by replacing its call to GETLN, which ProDOS
-    ; knows how to abuse, with our replacement, which ProDOS does not
-    ; know.
-    ;
-    ; But anyway, when the RETURN key is pressed by a user while it's in
-    ; ProDOS's KSW handler, ProDOS pre-emptively inserts a CR at
-    ; IN,x - which we don't want because the x-reg isn't necessarily at
-    ; the end of the line, in our case. If the line buffer contains a
-    ; ProDOS command, then ProDOS - before even returning control to us
-    ; so we can tell it what the typed command was! - ProDOS clears the
-    ; rest of the line, executes its command, sets the X-reg to 0
-    ; (thinking that this will fool us into thinking the user never
-    ; typed anything yet in the first place - as that's what GETLN would
-    ; think), and returns a backspace character, which would cause GETLN
-    ; to re-issue the prompt.
-    ;
-    ; To work around this, we do two things: We save the X-reg away and
-    ; set it to the end of the line (without touching CH, so the cursor
-    ; is still displayed in the right place). This also makes it totally
-    ; okay if ProDOS sticks a CR there - it's already supposaed to be a
-    ; CR. Then, we watch and see if the X-reg was _reset to zero_ and we
-    ; got a backspace; in which case we restart the prompt - ProDOS has
-    ; _already_ processed our current command, so throw it away like it
-    ; tried to make us do.
-    ;
-    ; The one issue that isn't solved by this technique, is that if the
-    ; user hit RETURN while still in the *middle* of a ProDOS command,
-    ; ProDOS will delete the end of the line that's showing on the
-    ; screen (even though, by setting X-reg to the end, we ensure the
-    ; stored command is safe). Not much we can do about that, really,
-    ; since it happens before we're even allowed to know about it.
-    stx @saveX
-    ldx LineLength
+    ldy #0
+    sty SidelinedChar
+    iny
+    sty SidelineCrState ; indicate to our input hook that it should
+                        ; never return CR, but indicate a CR to us
+                        ; in secret.
     jsr RDKEY
-    pha
-        lda LineLength
-        bne @nonzero
-    ; LineLength was 0, so we don't have to worry about ProDOS
-    ; having played any tricks.
-    pla
-@out:
-@saveX = * + 1
-    ldx #$00 ; OVERWRITTEN
-    rts
-@nonzero:
-    pla
-    cmp #$88 ; backspace?
-    bne @out ; -> no, just return it then
-    cpx #0   ; X-reg got reset?
-    bne @out
-    ; We got played! ...Go ahead and play along, restart the prompt.
-
-    ; Turn off auto-incremented line numbers - the user clearly
-    ;  just typed a line without a number... even if we never got
-    ;  to see it.
-    lda #0
-    sta AutoNumberModeFlag
-
-    ; Augh! What do we do here? We can't RTS and keep processing as
-    ; usual (we could have come from ReadDelay, for instance),
-    ; but neither can we just jmp to ViModeGetline - we have an unknown
-    ; number of call returns on the stack between us and it.
-    ; Could do like DOS, and save stack position on ViModeEntry?
-    ; .... yeah, think we'll go with that.
-    ldx SaveS
-    txs
-    jsr CROUT ; Send a CR, as GETLN would
-    jmp ViModeGetlineInternal
+    bit SidelinedChar ; did we catch a fish?
+    bpl :+            ; no - return the actual char we received.
+    lda SidelinedChar ; yes - unhook, scale and gut it.
+    ldy #0
+:   rts
 ShowVersion:
     stx @mySaveX
     ;; Erase the visible line
@@ -3321,8 +3257,6 @@ SaveX:
     .byte 0
 SaveY:
     .byte 0
-SaveS:
-    .byte 0
 SavedCH:
     .byte 0
 SavedCV:
@@ -3342,6 +3276,15 @@ AmSearchingNums:
 SearchChar:
     .byte 0
 SearchStyle:
+    .byte 0
+SidelineCrState:
+    .byte 0 ; always 0 except just before RDKEY call. We set to 1 to
+            ;  prevent returning a CR from our KSW handler (so
+            ;  DOS/ProDOS don't "see" it before we get a chance to do
+            ;  some cleanup); after cleanup we set to 2 and call KSW
+            ;  again, to indicate immediate return of a CR (so that
+            ;  DOS/ProDOS "do" see it, now that we're ready)
+SidelinedChar:
     .byte 0
 ViPromptIsBasic:
     .byte 0
