@@ -510,6 +510,8 @@ CheckForGetline:
     ; "real" character.
     ldx SaveX
     ldy SaveY
+    lda SaveA
+    sta (BASE),y ; restore orig char over any flashing cursor thing
     lda #$A0
     rts
 
