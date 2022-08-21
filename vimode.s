@@ -858,6 +858,9 @@ DoCR:
     ;  and told us the user just typed a BS, to get us to re-emit the
     ;  prompt. Be a good boy and do as ProDOS expects.
 
+    ; Emit the BS, as GETLN would.
+    jsr COUT
+
     ; Turn off auto-incremented line numbers - the user clearly
     ;  just typed a line without a number... even if we never got
     ;  to see it.
