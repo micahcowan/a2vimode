@@ -732,6 +732,8 @@ MaybeCtrlA:
 MaybeCtrlP:
     cmp #$90 ; C-P
     bne @nf
+    bit ViPromptIsBasic
+    bpl @nf ; if we're not in AppleSoft, we should insert the ^P
     lda #0
     sta RepeatCounter
     jsr BasicLineBack
@@ -744,6 +746,8 @@ MaybeCtrlP:
 MaybeCtrlN:
     cmp #$8E ; C-N
     bne @nf
+    bit ViPromptIsBasic
+    bpl @nf ; if we're not in AppleSoft, we should insert the ^N
     lda #0
     sta RepeatCounter
     jsr BasicLineForward
