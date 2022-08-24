@@ -3251,7 +3251,7 @@ LastEnteredLineNum:
     .word $FFFF
 LastRecordedLineNum:
     ; last entered line number, even if not from last-entered line
-    .word 9
+    .word 0
 SkipBy:
     .byte 10 ; decimal 10
 AutoNumberModeFlag:
